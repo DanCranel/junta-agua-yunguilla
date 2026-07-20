@@ -50,14 +50,16 @@ Abre http://localhost:3000
 - ✅ Estados de pago (Por pagar / En revisión / Pagado).
 - ✅ Panel del tesorero con la **lista de socios** (lee de Convex en tiempo real).
 - ✅ **Clave de acceso** al panel (validada en el backend, con sesión de 8 horas).
+- ✅ **Crear, editar y eliminar** socios desde el panel del tesorero.
+- ✅ **Confirmar / rechazar** el pago de un socio (cambia el estado).
+- ✅ Acciones del panel **protegidas por sesión** en el backend.
 - ✅ Carga de datos de ejemplo.
 - ✅ Diseño simple, letras grandes (pensado para adultos mayores).
 
 ## Pendiente (siguientes etapas)
 
+- ⏳ Mostrar la **cuenta bancaria** y **subir el comprobante** de pago (lado del socio).
 - ⏳ Descargar el comprobante de deuda en **PDF**.
-- ⏳ Mostrar la **cuenta bancaria** y **subir el comprobante** de pago.
-- ⏳ **Editar/crear/eliminar** socios y confirmar pagos desde el panel.
 - ⏳ Despliegue en **Vercel** (frontend) + Convex de producción.
 
 Ver el detalle completo de requerimientos en [PRD.md](PRD.md).

@@ -1,5 +1,5 @@
-import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { mutation, query, QueryCtx } from "./_generated/server";
+import { v, ConvexError } from "convex/values";
 
 // Duración de una sesión del panel del tesorero: 8 horas.
 const DURACION_SESION_MS = 1000 * 60 * 60 * 8;
@@ -15,6 +15,26 @@ function generarToken(): string {
     token += Math.random().toString(36).slice(2, 12);
   }
   return token;
+}
+
+/** Devuelve true si el token corresponde a una sesión vigente. */
+export async function sesionActiva(
+  ctx: QueryCtx,
+  token: string | null,
+): Promise<boolean> {
+  if (!token) return false;
+  const sesion = await ctx.db
+    .query("sesiones")
+    .withIndex("by_token", (q) => q.eq("token", token))
+    .first();
+  return !!sesion && sesion.expiraEn > Date.now();
+}
+
+/** Lanza un error si el token no corresponde a una sesión vigente. */
+export async function requerirSesion(ctx: QueryCtx, token: string): Promise<void> {
+  if (!(await sesionActiva(ctx, token))) {
+    throw new ConvexError({ codigo: "no_autorizado", mensaje: "Sesión inválida o expirada." });
+  }
 }
 
 /**
@@ -47,13 +67,7 @@ export const iniciarSesion = mutation({
 export const validarSesion = query({
   args: { token: v.union(v.string(), v.null()) },
   handler: async (ctx, { token }) => {
-    if (!token) return false;
-    const sesion = await ctx.db
-      .query("sesiones")
-      .withIndex("by_token", (q) => q.eq("token", token))
-      .first();
-    if (!sesion) return false;
-    return sesion.expiraEn > Date.now();
+    return await sesionActiva(ctx, token);
   },
 });
 
