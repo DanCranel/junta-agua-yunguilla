@@ -49,6 +49,7 @@ Abre http://localhost:3000
 - ✅ Consulta pública por **cédula + apellido** con tarjeta de deuda.
 - ✅ Estados de pago (Por pagar / En revisión / Pagado).
 - ✅ Panel del tesorero con la **lista de socios** (lee de Convex en tiempo real).
+- ✅ **Clave de acceso** al panel (validada en el backend, con sesión de 8 horas).
 - ✅ Carga de datos de ejemplo.
 - ✅ Diseño simple, letras grandes (pensado para adultos mayores).
 
@@ -57,7 +58,20 @@ Abre http://localhost:3000
 - ⏳ Descargar el comprobante de deuda en **PDF**.
 - ⏳ Mostrar la **cuenta bancaria** y **subir el comprobante** de pago.
 - ⏳ **Editar/crear/eliminar** socios y confirmar pagos desde el panel.
-- ⏳ **Clave** de acceso al panel del tesorero.
 - ⏳ Despliegue en **Vercel** (frontend) + Convex de producción.
 
 Ver el detalle completo de requerimientos en [PRD.md](PRD.md).
+
+---
+
+## Clave del administrador
+
+La clave del panel del tesorero **no se guarda en el código**, sino como variable
+de entorno en Convex (`CLAVE_ADMIN`).
+
+- **Clave temporal de la muestra:** `yunguilla2026`
+- **Para cambiarla** por una propia, corre en la terminal:
+  ```
+  npx convex env set CLAVE_ADMIN 'tu-clave-secreta'
+  ```
+- La sesión del tesorero dura 8 horas; luego pide la clave otra vez.

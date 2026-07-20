@@ -38,4 +38,10 @@ export default defineSchema({
     titular: v.string(),
     identificacionTitular: v.string(),
   }),
+
+  // Sesiones activas del panel del tesorero (token temporal tras validar la clave).
+  sesiones: defineTable({
+    token: v.string(),
+    expiraEn: v.number(), // marca de tiempo (ms) en que caduca la sesión
+  }).index("by_token", ["token"]),
 });
