@@ -1,44 +1,52 @@
-# PRD — Sistema de Consulta y Cobro de Agua
+# PRD v2 — Sistema de Consulta y Cobro de Agua
 ## Junta de Agua de Yunguilla
 
 | | |
 |---|---|
-| **Versión** | 1.0 (borrador para revisión) |
+| **Versión** | 2.0 (rediseño de cobro e historial) |
 | **Fecha** | 2026-07-20 |
 | **Etapa** | Prueba / muestra (demo) |
-| **Despliegue** | Vercel |
+| **Stack** | Next.js + Tailwind + shadcn/ui · Convex · Vercel |
+| **Repositorio** | github.com/DanCranel/junta-agua-yunguilla (privado) |
 
 ---
 
 ## 1. Resumen
 
 Página web sencilla para que los socios de la Junta de Agua de Yunguilla consulten
-cuánto deben por el servicio de agua y realicen el pago por transferencia,
-enviando su comprobante para que el tesorero lo verifique. Incluye un panel de
-administración simple para que el tesorero gestione los cobros del mes.
+cuánto deben por el servicio de agua, vean su **historial de pagos** y realicen el
+pago por transferencia enviando su comprobante. Incluye un panel de administración
+para que el tesorero registre las **lecturas del medidor** de cada mes; el **consumo
+y el monto se calculan automáticamente** según una tarifa configurable.
 
-El público objetivo son personas del campo y de edad avanzada, por lo que la
-prioridad de diseño es la **simplicidad y la facilidad de uso** por encima de
-cualquier otra característica.
+Público objetivo: personas del campo y de edad avanzada → prioridad en simplicidad,
+letras grandes y pocos pasos.
+
+### Cambios clave respecto a la v1
+- El monto **ya no se escribe a mano**: se calcula con las lecturas y la tarifa.
+- El tesorero **solo ingresa la lectura nueva** del medidor.
+- Se guarda una **planilla por socio por mes** (antes solo "el mes actual").
+- El socio y el tesorero pueden ver el **historial de pagos, dividido por años**.
+- Se pueden registrar **multas** (mora / inasistencia a mingas) sobre una planilla.
 
 ---
 
-## 2. Objetivos
+## 2. Estado del proyecto
 
-- **O1.** Que un socio pueda ver cuánto debe en menos de 30 segundos, sin ayuda.
-- **O2.** Que el socio obtenga un comprobante de su deuda en PDF.
-- **O3.** Que el socio sepa a qué cuenta pagar y pueda enviar su comprobante.
-- **O4.** Que el tesorero actualice los cobros del mes y confirme pagos sin
-  conocimientos técnicos.
-- **O5.** Validar el concepto con una muestra funcional desplegada en Vercel.
+### Ya construido (v1)
+- ✅ Consulta pública por **cédula + apellido**.
+- ✅ **Clave de acceso** al panel del tesorero (validada en backend, sesión 8 h).
+- ✅ **CRUD de socios** y **confirmar / rechazar** pago.
+- ✅ Backend Convex en la nube + repositorio en GitHub.
+- ✅ Diseño accesible (letras grandes).
 
-### No-objetivos (fuera de alcance de esta versión)
-- Pago en línea real (pasarela de pago con tarjeta). El pago se hace por
-  transferencia/depósito fuera de la plataforma.
-- Facturación electrónica / integración con el SRI.
-- Aplicación móvil nativa.
-- Múltiples juntas o multi-tenant.
-- Notificaciones automáticas por correo o SMS.
+### A rediseñar / agregar (v2)
+- 🔄 Separar **identidad del socio** de sus **planillas mensuales** (nuevo modelo).
+- 🆕 **Tarifa configurable** (básica + excedente) y cálculo automático del monto.
+- 🆕 Registro de **lectura mensual** (solo lectura nueva) que genera la planilla.
+- 🆕 **Historial de pagos por año** (socio y tesorero).
+- 🆕 **Multas** (mora / mingas) sumadas a la planilla.
+- 🔒 El consumo y el monto **no son editables** por el tesorero.
 
 ---
 
@@ -46,212 +54,242 @@ cualquier otra característica.
 
 | Rol | Descripción | Nivel técnico |
 |---|---|---|
-| **Socio** | Persona del campo, muchos de edad avanzada. Consulta su deuda y paga. | Bajo |
-| **Tesorero (administrador)** | Encargado de los cobros. Señor mayor con poco manejo tecnológico. | Bajo |
+| **Socio** | Persona del campo, muchos de edad avanzada. Consulta deuda e historial, paga. | Bajo |
+| **Tesorero (administrador)** | Registra lecturas y confirma pagos. Poco manejo tecnológico. | Bajo |
 
 ---
 
-## 4. Alcance funcional
+## 4. Reglas de negocio (núcleo de la v2)
 
-### 4.1 Lado del Socio (público)
+### 4.1 Cálculo del monto — Tarifa básica + excedente
+La tarifa se define en la configuración (editable por el tesorero):
+
+| Parámetro | Ejemplo (demo) |
+|---|---|
+| `tarifaBasica` — valor mínimo mensual | $3.00 |
+| `consumoIncluido` — m³ que cubre la básica | 15 m³ |
+| `precioExcedente` — valor por cada m³ adicional | $0.30 |
+
+**Fórmula:**
+```
+consumo = lecturaActual − lecturaAnterior
+si consumo ≤ consumoIncluido:
+    montoConsumo = tarifaBasica
+si no:
+    montoConsumo = tarifaBasica + (consumo − consumoIncluido) × precioExcedente
+montoTotal = montoConsumo + suma(multas)
+```
+
+**Ejemplos** (con la tarifa demo):
+- Consumo 12 m³ → $3.00
+- Consumo 15 m³ → $3.00
+- Consumo 20 m³ → $3.00 + (5 × $0.30) = **$4.50**
+- Consumo 20 m³ + multa de mora $1.00 → **$5.50**
+
+### 4.2 Lecturas del medidor
+- El tesorero ingresa **únicamente la lectura actual** del medidor del mes.
+- La **lectura anterior** se toma automáticamente de la planilla del mes previo del
+  mismo socio (para la primera planilla se usa una lectura inicial definida al crear
+  el socio, por defecto 0).
+- El **consumo** = lectura actual − lectura anterior (calculado, no editable).
+- Si la lectura actual es menor que la anterior (cambio de medidor, error), el sistema
+  avisa y no permite guardar hasta corregir. *(regla a afinar; ver §14)*
+
+### 4.3 Campos NO editables por el tesorero
+- **Consumo** y **monto** se muestran como resultado calculado, nunca como campos de
+  entrada.
+- El tesorero **sí** edita: datos del socio (nombre, cédula, dirección, medidor),
+  la lectura nueva, la fecha límite, las multas y la configuración de tarifa.
+
+### 4.4 Multas
+- El tesorero puede agregar una o varias multas a una planilla: `tipo`
+  (mora / minga / otro), `descripción`, `monto`.
+- Las multas **se suman** al monto de la planilla.
+- La **mora automática** (interés por atraso) queda como opción futura; por ahora las
+  multas se registran manualmente. *(ver §14)*
+
+---
+
+## 5. Alcance funcional
+
+### 5.1 Socio (público)
 
 | ID | Requerimiento |
 |---|---|
-| RF-01 | Ingresar con **número de cédula + apellido** (dato extra de privacidad). |
-| RF-02 | Ver una tarjeta clara con: nombre, mes cobrado, lectura anterior y actual, consumo (m³), **monto a pagar**, fecha límite y **estado**. |
-| RF-03 | Mensaje claro y amable si la cédula/apellido no coinciden o no hay deuda. |
-| RF-04 | **Descargar un PDF** con el detalle de la deuda (comprobante de cobro). |
-| RF-05 | Ver la **cuenta bancaria fija de la junta** con instrucciones simples para pagar. |
-| RF-06 | **Subir el comprobante** de pago (foto o PDF) desde la misma página. |
-| RF-07 | Al subir el comprobante, el estado cambia automáticamente a **"En revisión"**. |
+| RF-01 | Ingresar con **cédula + apellido**. |
+| RF-02 | Ver la **planilla pendiente actual**: mes, lecturas, consumo (m³), desglose (básica, excedente, multas), **monto total**, fecha límite y **estado**. |
+| RF-03 | Ver su **historial de pagos**, agrupado por **año** (cada año colapsable), con mes, consumo, monto, estado y fecha de pago. |
+| RF-04 | Descargar un **PDF** de la planilla (comprobante de deuda). |
+| RF-05 | Ver la **cuenta bancaria** de la junta e instrucciones de pago. |
+| RF-06 | **Subir el comprobante** de pago de una planilla → estado "En revisión". |
+| RF-07 | Mensaje claro si no hay coincidencia o no tiene deudas pendientes. |
 
-### 4.2 Lado del Tesorero (panel con clave)
+### 5.2 Tesorero (panel con clave)
 
 | ID | Requerimiento |
 |---|---|
-| RF-10 | Ingresar al panel con una **clave** de administrador. |
-| RF-11 | Ver la **lista de socios** ordenada, con su estado de pago. |
-| RF-12 | **Agregar, editar y eliminar** socios. |
-| RF-13 | Editar por socio: lecturas del medidor, monto, mes y fecha límite. |
-| RF-14 | Ver los socios **"En revisión"** y **abrir el comprobante** que subieron. |
-| RF-15 | **Confirmar el pago** (→ "Pagado") o **rechazarlo** (→ "Por pagar", con opción de nota). |
-| RF-16 | Editar la **configuración de la cuenta bancaria** que ven los socios. |
-| RF-17 | (Deseable) Preparar el mes siguiente: pasar "lectura actual" a "anterior" y reiniciar estados. |
+| RF-10 | Ingresar con **clave** (ya implementado). |
+| RF-11 | **Crear / editar / eliminar socios** (identidad: nombre, cédula, dirección, n.º de medidor, lectura inicial). |
+| RF-12 | **Registrar la lectura del mes** de un socio (solo lectura actual) → genera la planilla con consumo y monto **calculados**. |
+| RF-13 | Ver el **consumo y monto calculados** antes de guardar (solo lectura, no editables). |
+| RF-14 | Agregar **multas** (mora / minga / otro) a una planilla. |
+| RF-15 | Ver planillas **"En revisión"**, abrir el comprobante y **confirmar** (→ Pagado, guarda fecha de pago) o **rechazar** (→ Por pagar). |
+| RF-16 | Editar la **configuración de tarifa** (básica, consumo incluido, excedente) y la **cuenta bancaria**. |
+| RF-17 | Ver el **historial de planillas** de cada socio, agrupado por año. |
 
 ---
 
-## 5. Flujos principales
+## 6. Flujos principales
 
-### 5.1 Consulta y pago (socio)
-1. Entra a la página principal.
-2. Escribe **cédula** y **apellido** → botón "Consultar".
-3. Ve su tarjeta de deuda con el estado actual.
-4. Descarga el **PDF** si lo desea.
-5. Ve la **cuenta bancaria** y realiza la transferencia por su cuenta.
-6. **Sube el comprobante** (foto/PDF) → estado pasa a **"En revisión"**.
-7. Queda a la espera de que el tesorero confirme.
+### 6.1 Cierre de mes (tesorero)
+1. Entra al panel.
+2. Por cada socio (o socio por socio), abre **"Registrar lectura del mes"**.
+3. Escribe **la lectura actual** del medidor.
+4. El sistema muestra: lectura anterior (heredada), consumo, básica, excedente y
+   **monto** — todo calculado.
+5. (Opcional) agrega **multas**.
+6. Guarda → se crea la **planilla del mes** en estado "Por pagar".
 
-### 5.2 Gestión y confirmación (tesorero)
-1. Entra a `/admin` con su clave.
-2. Actualiza lecturas y montos del mes para los socios.
-3. Revisa la bandeja de **"En revisión"**.
-4. Abre el comprobante, verifica y **marca "Pagado"** (o lo rechaza).
+### 6.2 Consulta y pago (socio)
+1. Ingresa **cédula + apellido**.
+2. Ve la **planilla pendiente** (con desglose) y su **historial por años**.
+3. Descarga el **PDF** si lo desea.
+4. Ve la **cuenta bancaria**, paga por transferencia y **sube el comprobante** →
+   estado "En revisión".
+
+### 6.3 Confirmación (tesorero)
+1. Revisa las planillas **"En revisión"**.
+2. Abre el comprobante y **confirma** (→ Pagado) o **rechaza** (→ Por pagar).
 
 ---
 
-## 6. Estados de pago
+## 7. Estados de pago (por planilla)
 
 ```
-🔴 Por pagar  ──(el socio sube comprobante)──▶  🟡 En revisión  ──(el tesorero confirma)──▶  🟢 Pagado
-        ▲                                                         │
-        └──────────────(el tesorero rechaza)─────────────────────┘
+🔴 Por pagar ──(socio sube comprobante)──▶ 🟡 En revisión ──(tesorero confirma)──▶ 🟢 Pagado
+       ▲                                                      │
+       └──────────────(tesorero rechaza)─────────────────────┘
 ```
-
-| Estado | Quién lo activa | Significado para el socio |
-|---|---|---|
-| **Por pagar** | Estado inicial / rechazo | Todavía no ha pagado. |
-| **En revisión** | El socio (al subir comprobante) | Ya envió el comprobante; el tesorero lo verifica. |
-| **Pagado** | El tesorero (al confirmar) | Pago confirmado. |
 
 ---
 
-## 7. Modelo de datos
+## 8. Modelo de datos (Convex)
 
-### Socio
+### socios (identidad)
 | Campo | Tipo | Notas |
 |---|---|---|
-| id | texto | Identificador interno. |
 | cedula | texto | Se compara solo por dígitos. |
 | nombres | texto | |
-| apellidos | texto | Usado también para el ingreso (login). |
-| direccion | texto | Opcional. |
-| lecturaAnterior | número | Lectura del medidor del mes anterior. |
-| lecturaActual | número | Lectura del medidor del mes actual. |
-| consumo (m³) | número | Calculado: actual − anterior. |
-| montoDeuda | número | Valor a pagar en USD. |
-| mes | texto | Ej. "Julio 2026". |
-| fechaLimite | fecha | Hasta cuándo pagar. |
-| estado | enum | por_pagar / en_revision / pagado. |
-| comprobante | archivo | Foto o PDF subido por el socio (opcional). |
+| apellidos | texto | También usado para el ingreso del socio. |
+| direccion | texto? | Opcional. |
+| numeroMedidor | texto? | Opcional. |
+| lecturaInicial | número | Lectura al registrarse (base de la primera planilla). |
+| activo | booleano | Para dar de baja sin borrar historial. |
 
-### Configuración (una sola)
+### planillas (una por socio por mes)
+| Campo | Tipo | Notas |
+|---|---|---|
+| socioId | id(socios) | |
+| anio | número | Ej. 2026. Para agrupar el historial. |
+| mes | número | 1–12. |
+| lecturaAnterior | número | Heredada del mes previo (no editable). |
+| lecturaActual | número | **Único dato que ingresa el tesorero.** |
+| consumo | número | Calculado = actual − anterior. |
+| montoConsumo | número | Calculado (básica + excedente). |
+| multas | arreglo | `{ tipo, descripcion, monto }`. |
+| montoTotal | número | montoConsumo + suma(multas). |
+| estado | enum | por_pagar / en_revision / pagado. |
+| fechaLimite | texto | ISO. |
+| fechaPago | texto? | Se llena al confirmar. |
+| comprobanteId | id(_storage)? | Comprobante subido por el socio. |
+| Índices | | `by_socio` (socioId), `by_socio_periodo` (socioId, anio, mes). |
+
+### tarifa (configuración única)
 | Campo | Notas |
 |---|---|
-| banco | Nombre del banco. |
-| tipoCuenta | Ahorros / Corriente. |
-| numeroCuenta | Número de cuenta de la junta. |
-| titular | Nombre del titular. |
-| identificacionTitular | Cédula/RUC del titular. |
-| claveAdmin | Clave de acceso al panel del tesorero. |
+| tarifaBasica | Valor mínimo mensual. |
+| consumoIncluido | m³ que cubre la básica. |
+| precioExcedente | Valor por m³ adicional. |
+
+### config (cuenta bancaria) — ya existe
+banco · tipoCuenta · numeroCuenta · titular · identificacionTitular
+
+### sesiones — ya existe
+token · expiraEn
 
 ---
 
-## 8. Requerimientos no funcionales
+## 9. Requerimientos no funcionales
 
 | ID | Requerimiento |
 |---|---|
-| RNF-01 | **Accesibilidad para adultos mayores:** letras grandes, botones grandes, alto contraste, pasos mínimos, textos en lenguaje claro. |
-| RNF-02 | **Móvil primero:** debe verse y funcionar bien en el teléfono. |
+| RNF-01 | **Accesibilidad:** letras y botones grandes, alto contraste, pasos mínimos, lenguaje claro. |
+| RNF-02 | **Móvil primero.** |
 | RNF-03 | **Idioma:** español (Ecuador). |
-| RNF-04 | **Privacidad:** el acceso a la deuda requiere cédula + apellido; no se exponen datos de otros socios. |
-| RNF-05 | **Seguridad del panel:** el área de administración está protegida por clave. |
-| RNF-06 | **Rendimiento:** carga rápida incluso con conexión lenta del campo. |
-| RNF-07 | **Simplicidad de mantenimiento:** el tesorero opera sin conocimientos técnicos. |
+| RNF-04 | **Privacidad:** consulta requiere cédula + apellido; no se exponen datos de otros socios. |
+| RNF-05 | **Integridad del cobro:** consumo y monto siempre calculados; el tesorero no los altera a mano (transparencia y menos errores). |
+| RNF-06 | **Seguridad del panel:** acciones protegidas por sesión en el backend. |
+| RNF-07 | **Historial no destructivo:** dar de baja un socio no borra sus planillas. |
 
 ---
 
-## 9. Arquitectura técnica
+## 10. Arquitectura
 
-### 9.1 Stack
-
-| Capa | Tecnología | Rol |
-|---|---|---|
-| **Frontend** | Next.js (App Router) + TypeScript | Páginas y lógica de interfaz. |
-| **Estilos** | Tailwind CSS | Sistema de estilos utilitario. |
-| **Componentes** | shadcn/ui | Botones, tarjetas, formularios, diálogos accesibles sobre Tailwind. |
-| **Backend + Base de datos** | Convex | Tablas, consultas/mutaciones en tiempo real, lógica de servidor. |
-| **Archivos** | Convex File Storage | Guarda los comprobantes de pago (persistente). |
-| **PDF** | jsPDF (en el navegador) | Genera el comprobante de deuda descargable. |
-| **Despliegue** | Vercel (frontend) + Convex (backend en la nube) | |
-
-### 9.2 Convex — modelo
-
-- Tablas: **`socios`** y **`config`** (cuenta bancaria y clave del panel).
-- **Consultas (queries):** buscar socio por cédula + apellido, listar socios,
-  leer configuración.
-- **Mutaciones (mutations):** crear/editar/eliminar socio, cambiar estado,
-  registrar comprobante, actualizar configuración.
-- **Almacenamiento de archivos:** el comprobante subido por el socio se guarda
-  en Convex File Storage y se referencia desde el socio.
-- **Tiempo real:** el panel del tesorero se actualiza solo cuando un socio sube
-  un comprobante (aparece en "En revisión" sin recargar).
-
-### 9.3 Persistencia
-
-- Con Convex, **los datos y los comprobantes se guardan en la nube y persisten**,
-  tanto al correr en local como al desplegar en Vercel. Se elimina la limitación
-  de la versión anterior basada en archivos locales.
-- **Requisito de configuración:** el proyecto necesita una cuenta de Convex
-  (plan gratuito) y ejecutar `npx convex dev` para provisionar el backend. La URL
-  del backend se expone como variable de entorno `NEXT_PUBLIC_CONVEX_URL`.
-- **Camino a producción:** al pasar de la muestra a uso real, básicamente se usa
-  un *deployment* de producción de Convex; el modelo de datos y las funciones no
-  cambian.
+- **Frontend:** Next.js (App Router) + TypeScript + Tailwind + shadcn/ui.
+- **Backend/BD/archivos:** Convex (tablas, funciones, File Storage para comprobantes).
+- **PDF:** jsPDF en el navegador.
+- **Despliegue:** Vercel (frontend) + Convex (nube).
+- **Migración v1→v2:** se rehace el esquema (socios + planillas + tarifa) y los datos
+  de ejemplo. Al ser una muestra, no hay datos reales que preservar.
 
 ---
 
-## 10. Seguridad y privacidad
-
-- El ingreso del socio con **cédula + apellido** ofrece una privacidad básica
-  (no cualquiera adivina ambos), suficiente para una comunidad pequeña, pero
-  **no es un mecanismo de seguridad fuerte**. Se documenta como decisión
-  consciente.
-- El panel del tesorero se protege con **clave**, validada en el backend
-  (Convex), no en el navegador. Para la muestra, la clave y los datos sensibles
-  no se publican en el repositorio (se usan variables de entorno de Convex).
-- No se solicitan ni almacenan contraseñas bancarias ni datos de tarjetas.
+## 11. Seguridad y privacidad
+- Ingreso del socio con cédula + apellido: privacidad básica, no seguridad fuerte
+  (decisión consciente para una comunidad pequeña).
+- Clave del tesorero validada en el backend; guardada como variable de entorno de
+  Convex (`CLAVE_ADMIN`), fuera del repositorio.
+- No se piden ni guardan contraseñas bancarias ni datos de tarjeta.
 
 ---
 
-## 11. Datos de ejemplo (para la muestra)
-
-- **1 cuenta bancaria ficticia** de la junta.
-- **5–8 socios de ejemplo** con datos inventados, en distintos estados
-  (por pagar, en revisión, pagado) para poder probar todos los flujos.
-- Una **clave de administrador** de ejemplo documentada para pruebas.
-
----
-
-## 12. Criterios de aceptación
-
-- [ ] Un socio puede consultar su deuda con cédula + apellido y ver todos los datos.
-- [ ] Se puede descargar el PDF de la deuda.
-- [ ] Se muestra la cuenta bancaria de la junta.
-- [ ] El socio puede subir un comprobante y su estado pasa a "En revisión".
-- [ ] El tesorero entra con clave y ve la lista de socios.
-- [ ] El tesorero puede crear, editar y eliminar socios y sus montos.
-- [ ] El tesorero ve el comprobante subido y puede marcar "Pagado" o rechazar.
-- [ ] El tesorero puede editar la cuenta bancaria mostrada a los socios.
-- [ ] La página se ve bien y es usable en un teléfono, con letras grandes.
-- [ ] La aplicación se despliega correctamente en Vercel.
+## 12. Datos de ejemplo (muestra)
+- Tarifa demo: básica **$3.00** hasta **15 m³**, excedente **$0.30/m³**.
+- Cuenta bancaria ficticia de la junta.
+- 5–6 socios con **varias planillas** (varios meses / 2 años) en distintos estados,
+  para poder ver el historial y probar los flujos.
 
 ---
 
-## 13. Supuestos y decisiones tomadas
+## 13. Criterios de aceptación
+- [ ] El tesorero registra una lectura y el sistema **calcula** consumo y monto (básica + excedente); no puede escribir el monto a mano.
+- [ ] La lectura anterior se hereda automáticamente del mes previo.
+- [ ] El tesorero puede agregar una multa y el monto total la incluye.
+- [ ] El socio consulta y ve su planilla pendiente con desglose.
+- [ ] El socio ve su **historial de pagos agrupado por año**.
+- [ ] El tesorero ve el historial por año de cada socio.
+- [ ] Descarga de PDF de la planilla.
+- [ ] Cuenta bancaria visible; el socio sube comprobante (→ En revisión); el tesorero confirma (→ Pagado, con fecha) o rechaza.
+- [ ] Crear/editar/eliminar socios (identidad) sigue funcionando.
+- [ ] Usable en teléfono, con letras grandes.
+- [ ] Desplegado en Vercel + Convex de producción.
 
-- Login del socio = **cédula + apellido** (no número de socio ni PIN).
-- Comprobante = **subida de archivo en la web** (no WhatsApp).
-- Confirmación de pago = **el socio avisa (sube comprobante) y el tesorero confirma**.
-- Cuenta bancaria = **una sola, fija** para toda la junta.
-- Datos de ejemplo = **inventados** por el equipo de desarrollo.
-- Estilo = **sencillo y grande**, sin logo/colores de marca por ahora.
-- Stack = **Next.js + Tailwind + shadcn/ui** (frontend), **Convex** (backend,
-  base de datos y almacenamiento de comprobantes), **Vercel** (despliegue).
+---
 
-## 14. Preguntas abiertas / futuro
+## 14. Preguntas abiertas / a decidir
+- **Mora automática:** ¿calcular interés/multa automáticamente al pasar la fecha
+  límite, o siempre registrarla a mano? (por ahora: manual)
+- **Lectura menor a la anterior:** ¿bloquear, permitir con confirmación, o manejar
+  cambio de medidor? (por ahora: bloquear con aviso)
+- **Registro por lote:** ¿generar la planilla de todos los socios de un mes de una
+  sola vez, además de socio por socio? (futuro)
+- **Formato del período:** confirmar si el "mes" se maneja por mes calendario o por
+  ciclo de lectura.
 
-- ¿Se necesita historial de meses anteriores por socio? (por ahora, solo el mes actual)
-- ¿Multa o interés por mora tras la fecha límite?
-- ¿Reporte/exportación para la junta (total recaudado, morosos)?
-- Migración a base de datos y almacenamiento persistente para producción.
-- Notificaciones (correo/WhatsApp) cuando cambia el estado.
+## 15. Futuro (fuera del alcance actual)
+- Reportes para la directiva (recaudación por mes, morosos, resumen anual).
+- Cargos adicionales configurables (alcantarillado, cargo fijo, aportes).
+- Corte y reconexión del servicio.
+- Mora automática por atraso.
+- Notificaciones (correo / WhatsApp) al cambiar de estado.
+- Pago en línea real (pasarela).
