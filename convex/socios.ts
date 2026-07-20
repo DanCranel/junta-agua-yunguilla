@@ -1,27 +1,24 @@
 import { query, mutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { normalizar, soloDigitos } from "./lib";
-import { estadoValidator } from "./schema";
 import { requerirSesion, sesionActiva } from "./auth";
 
-// Campos editables de un socio (reutilizados en crear y actualizar).
+// Campos de identidad de un socio (reutilizados en crear y actualizar).
 const camposSocio = {
   cedula: v.string(),
   nombres: v.string(),
   apellidos: v.string(),
   direccion: v.optional(v.string()),
-  lecturaAnterior: v.number(),
-  lecturaActual: v.number(),
-  montoDeuda: v.number(),
-  mes: v.string(),
-  fechaLimite: v.string(),
-  estado: estadoValidator,
+  numeroMedidor: v.optional(v.string()),
+  lecturaInicial: v.number(),
+  activo: v.boolean(),
 };
 
 /**
- * Consulta pública: busca un socio por cédula + apellido.
+ * Consulta pública: busca un socio por cédula + apellido y devuelve su
+ * historial completo de planillas (más reciente primero).
  * El apellido puede ser el completo o solo el primero.
- * Devuelve { encontrado: boolean, socio? }.
+ * Devuelve { encontrado: boolean, socio?, planillas? }.
  */
 export const buscar = query({
   args: { cedula: v.string(), apellido: v.string() },
@@ -43,13 +40,32 @@ export const buscar = query({
       return { encontrado: false as const };
     }
 
-    return { encontrado: true as const, socio };
+    // Todas las planillas del socio, ordenadas por (anio, mes) descendente.
+    const planillas = await ctx.db
+      .query("planillas")
+      .withIndex("by_socio", (q) => q.eq("socioId", socio._id))
+      .collect();
+    planillas.sort((a, b) => b.anio - a.anio || b.mes - a.mes);
+
+    return {
+      encontrado: true as const,
+      socio: {
+        _id: socio._id,
+        cedula: socio.cedula,
+        nombres: socio.nombres,
+        apellidos: socio.apellidos,
+        direccion: socio.direccion,
+        numeroMedidor: socio.numeroMedidor,
+      },
+      planillas,
+    };
   },
 });
 
 /**
  * Lista todos los socios para el panel del tesorero (requiere sesión válida).
- * Incluye la URL del comprobante si el socio subió uno.
+ * Cada socio incluye su planilla pendiente más reciente (si la tiene), con la
+ * URL del comprobante resuelta.
  */
 export const listar = query({
   args: { token: v.union(v.string(), v.null()) },
@@ -62,12 +78,30 @@ export const listar = query({
     );
 
     return Promise.all(
-      socios.map(async (s) => ({
-        ...s,
-        comprobanteUrl: s.comprobanteId
-          ? await ctx.storage.getUrl(s.comprobanteId)
-          : null,
-      })),
+      socios.map(async (socio) => {
+        // Planilla pendiente: la más reciente que no esté pagada.
+        const planillas = await ctx.db
+          .query("planillas")
+          .withIndex("by_socio", (q) => q.eq("socioId", socio._id))
+          .collect();
+        planillas.sort((a, b) => b.anio - a.anio || b.mes - a.mes);
+        const p = planillas.find((pl) => pl.estado !== "pagado") ?? null;
+
+        const pendiente = p
+          ? {
+              _id: p._id,
+              anio: p.anio,
+              mes: p.mes,
+              montoTotal: p.montoTotal,
+              estado: p.estado,
+              comprobanteUrl: p.comprobanteId
+                ? await ctx.storage.getUrl(p.comprobanteId)
+                : null,
+            }
+          : null;
+
+        return { ...socio, pendiente };
+      }),
     );
   },
 });
@@ -95,7 +129,7 @@ export const crear = mutation({
   },
 });
 
-/** Actualiza los datos de un socio (requiere sesión). */
+/** Actualiza los datos de identidad de un socio (requiere sesión). */
 export const actualizar = mutation({
   args: { token: v.string(), id: v.id("socios"), ...camposSocio },
   handler: async (ctx, { token, id, ...datos }) => {
@@ -105,102 +139,27 @@ export const actualizar = mutation({
   },
 });
 
-/** Elimina un socio y su comprobante (si tiene). Requiere sesión. */
+/**
+ * Elimina un socio y todo su historial. Requiere sesión.
+ * Borra primero sus planillas (y los comprobantes almacenados de cada una).
+ */
 export const eliminar = mutation({
   args: { token: v.string(), id: v.id("socios") },
   handler: async (ctx, { token, id }) => {
     await requerirSesion(ctx, token);
-    const socio = await ctx.db.get(id);
-    if (socio?.comprobanteId) {
-      await ctx.storage.delete(socio.comprobanteId);
+
+    const planillas = await ctx.db
+      .query("planillas")
+      .withIndex("by_socio", (q) => q.eq("socioId", id))
+      .collect();
+    for (const planilla of planillas) {
+      if (planilla.comprobanteId) {
+        await ctx.storage.delete(planilla.comprobanteId);
+      }
+      await ctx.db.delete(planilla._id);
     }
+
     await ctx.db.delete(id);
     return null;
-  },
-});
-
-/** Confirma el pago de un socio: estado -> pagado. Requiere sesión. */
-export const confirmarPago = mutation({
-  args: { token: v.string(), id: v.id("socios") },
-  handler: async (ctx, { token, id }) => {
-    await requerirSesion(ctx, token);
-    await ctx.db.patch(id, { estado: "pagado" });
-    return null;
-  },
-});
-
-/** Rechaza el pago: vuelve el estado a por_pagar. Requiere sesión. */
-export const rechazarPago = mutation({
-  args: { token: v.string(), id: v.id("socios") },
-  handler: async (ctx, { token, id }) => {
-    await requerirSesion(ctx, token);
-    await ctx.db.patch(id, { estado: "por_pagar" });
-    return null;
-  },
-});
-
-/**
- * Carga datos de ejemplo (para la muestra). No hace nada si ya existen socios.
- * Requiere sesión.
- */
-export const sembrarEjemplo = mutation({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    await requerirSesion(ctx, token);
-
-    const yaHay = await ctx.db.query("socios").take(1);
-    if (yaHay.length > 0) {
-      return { creados: 0, mensaje: "Ya existen datos de ejemplo." };
-    }
-
-    const ejemplos = [
-      {
-        cedula: "0102030405", nombres: "María Rosa", apellidos: "Guamán Pineda",
-        direccion: "Sector La Loma", lecturaAnterior: 120, lecturaActual: 135,
-        montoDeuda: 6.5, mes: "Julio 2026", fechaLimite: "2026-07-31",
-        estado: "por_pagar" as const,
-      },
-      {
-        cedula: "0203040506", nombres: "José Manuel", apellidos: "Quizhpi Tenesaca",
-        direccion: "Vía Principal", lecturaAnterior: 88, lecturaActual: 96,
-        montoDeuda: 4.0, mes: "Julio 2026", fechaLimite: "2026-07-31",
-        estado: "en_revision" as const,
-      },
-      {
-        cedula: "0304050607", nombres: "Rosa Elena", apellidos: "Lema Chuqui",
-        direccion: "Sector El Mirador", lecturaAnterior: 200, lecturaActual: 210,
-        montoDeuda: 5.0, mes: "Julio 2026", fechaLimite: "2026-07-31",
-        estado: "pagado" as const,
-      },
-      {
-        cedula: "0405060708", nombres: "Segundo Luis", apellidos: "Cabrera Ortiz",
-        direccion: "Centro", lecturaAnterior: 45, lecturaActual: 58,
-        montoDeuda: 6.0, mes: "Julio 2026", fechaLimite: "2026-07-31",
-        estado: "por_pagar" as const,
-      },
-      {
-        cedula: "0506070809", nombres: "Ana Lucía", apellidos: "Morocho Sisa",
-        direccion: "Sector La Quebrada", lecturaAnterior: 310, lecturaActual: 322,
-        montoDeuda: 5.5, mes: "Julio 2026", fechaLimite: "2026-07-31",
-        estado: "por_pagar" as const,
-      },
-    ];
-
-    for (const e of ejemplos) {
-      await ctx.db.insert("socios", e);
-    }
-
-    const cfg = await ctx.db.query("config").first();
-    if (!cfg) {
-      await ctx.db.insert("config", {
-        banco: "Banco del Austro",
-        tipoCuenta: "Ahorros",
-        numeroCuenta: "1234567890",
-        titular: "Junta de Agua de Yunguilla",
-        identificacionTitular: "0190000000001",
-      });
-    }
-
-    return { creados: ejemplos.length };
   },
 });
