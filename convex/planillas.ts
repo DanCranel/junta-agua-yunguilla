@@ -8,6 +8,7 @@ import {
   calcularMontoConsumo,
   calcularMontoTotal,
   fechaHoyISO,
+  normalizar,
   ultimoDiaDelMes,
   TARIFA_POR_DEFECTO,
   type Tarifa,
@@ -164,6 +165,127 @@ export const registrarLectura = mutation({
       estado: "por_pagar",
       fechaLimite: fechaLimite ?? ultimoDiaDelMes(anio, mes),
     });
+  },
+});
+
+/**
+ * Resumen para el cierre de mes por lote: por cada socio ACTIVO devuelve su
+ * lectura anterior heredada para (anio, mes) y si ya tiene planilla ese período.
+ * Una sola query para toda la pantalla (evita disparar N previsualizaciones).
+ * Requiere sesión; token inválido -> null.
+ */
+export const resumenCierre = query({
+  args: {
+    token: v.union(v.string(), v.null()),
+    anio: v.number(),
+    mes: v.number(),
+  },
+  handler: async (ctx, { token, anio, mes }) => {
+    if (!(await sesionActiva(ctx, token))) return null;
+
+    const tarifa = await obtenerTarifa(ctx);
+
+    const socios = (await ctx.db.query("socios").collect()).filter(
+      (s) => s.activo,
+    );
+    socios.sort((a, b) =>
+      normalizar(a.apellidos).localeCompare(normalizar(b.apellidos)),
+    );
+
+    const filas = await Promise.all(
+      socios.map(async (s) => {
+        const existente = await ctx.db
+          .query("planillas")
+          .withIndex("by_socio_periodo", (q) =>
+            q.eq("socioId", s._id).eq("anio", anio).eq("mes", mes),
+          )
+          .first();
+        const lecturaAnterior = await lecturaAnteriorDe(ctx, s._id, anio, mes);
+        return {
+          socioId: s._id,
+          nombre: `${s.nombres} ${s.apellidos}`,
+          numeroMedidor: s.numeroMedidor,
+          lecturaAnterior,
+          yaRegistrada: existente !== null,
+          estado: existente?.estado ?? null,
+        };
+      }),
+    );
+
+    return { tarifa, filas };
+  },
+});
+
+/**
+ * Registra varias lecturas del mismo período de una sola vez (cierre de mes).
+ * Cada fila se valida de forma independiente: un error en una (lectura menor a
+ * la anterior, período duplicado) NO impide guardar las demás. Requiere sesión.
+ * Devuelve un resumen { creadas, omitidas, errores: [{ nombre, mensaje }] }.
+ */
+export const registrarLecturasLote = mutation({
+  args: {
+    token: v.string(),
+    anio: v.number(),
+    mes: v.number(),
+    fechaLimite: v.optional(v.string()),
+    lecturas: v.array(
+      v.object({ socioId: v.id("socios"), lecturaActual: v.number() }),
+    ),
+  },
+  handler: async (ctx, { token, anio, mes, fechaLimite, lecturas }) => {
+    await requerirSesion(ctx, token);
+
+    const tarifa = await obtenerTarifa(ctx);
+    let creadas = 0;
+    let omitidas = 0;
+    const errores: { nombre: string; mensaje: string }[] = [];
+
+    for (const { socioId, lecturaActual } of lecturas) {
+      const socio = await ctx.db.get(socioId);
+      const nombre = socio
+        ? `${socio.nombres} ${socio.apellidos}`
+        : "Socio desconocido";
+
+      // Ya existe planilla para ese período: se omite (idempotente).
+      const existente = await ctx.db
+        .query("planillas")
+        .withIndex("by_socio_periodo", (q) =>
+          q.eq("socioId", socioId).eq("anio", anio).eq("mes", mes),
+        )
+        .first();
+      if (existente) {
+        omitidas++;
+        continue;
+      }
+
+      const lecturaAnterior = await lecturaAnteriorDe(ctx, socioId, anio, mes);
+      if (lecturaActual < lecturaAnterior) {
+        errores.push({
+          nombre,
+          mensaje: `Lectura ${lecturaActual} menor que la anterior (${lecturaAnterior}).`,
+        });
+        continue;
+      }
+
+      const consumo = calcularConsumo(lecturaAnterior, lecturaActual);
+      const montoConsumo = calcularMontoConsumo(consumo, tarifa);
+      await ctx.db.insert("planillas", {
+        socioId,
+        anio,
+        mes,
+        lecturaAnterior,
+        lecturaActual,
+        consumo,
+        montoConsumo,
+        multas: [],
+        montoTotal: montoConsumo,
+        estado: "por_pagar",
+        fechaLimite: fechaLimite ?? ultimoDiaDelMes(anio, mes),
+      });
+      creadas++;
+    }
+
+    return { creadas, omitidas, errores };
   },
 });
 

@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { AvisoError } from "./_components/comunes";
+import { CierreMes } from "./_components/cierre-mes";
 import { Configuracion } from "./_components/configuracion";
 import { FormSocio } from "./_components/form-socio";
 import { SocioCard } from "./_components/socio-card";
@@ -145,7 +146,7 @@ function PantallaIngreso({ onIngreso }: { onIngreso: (token: string) => void }) 
   );
 }
 
-type Vista = "socios" | "config";
+type Vista = "socios" | "cierre" | "config";
 
 /** Panel principal del tesorero (visible solo tras autenticarse). */
 function PanelTesorero({ token, onSalir }: { token: string; onSalir: () => void }) {
@@ -172,13 +173,20 @@ function PanelTesorero({ token, onSalir }: { token: string; onSalir: () => void 
       </header>
 
       {/* Pestañas simples */}
-      <nav className="mb-6 flex gap-2">
+      <nav className="mb-6 flex flex-wrap gap-2">
         <Button
           size="lg"
           variant={vista === "socios" ? "default" : "outline"}
           onClick={() => setVista("socios")}
         >
           Socios
+        </Button>
+        <Button
+          size="lg"
+          variant={vista === "cierre" ? "default" : "outline"}
+          onClick={() => setVista("cierre")}
+        >
+          Cierre de mes
         </Button>
         <Button
           size="lg"
@@ -189,11 +197,9 @@ function PanelTesorero({ token, onSalir }: { token: string; onSalir: () => void 
         </Button>
       </nav>
 
-      {vista === "socios" ? (
-        <SeccionSocios token={token} />
-      ) : (
-        <Configuracion token={token} />
-      )}
+      {vista === "socios" && <SeccionSocios token={token} />}
+      {vista === "cierre" && <CierreMes token={token} />}
+      {vista === "config" && <Configuracion token={token} />}
     </main>
   );
 }
