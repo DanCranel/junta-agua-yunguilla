@@ -1,79 +1,108 @@
-# Junta de Agua de Yunguilla
+# Sistema de Consulta y Cobro de Agua
 
-Página web para que los socios consulten cuánto deben por el servicio de agua.
-Versión inicial (muestra) con todo conectado de punta a punta.
+Aplicación web para **juntas de agua comunitarias**: los socios consultan cuánto
+deben, ven su historial de pagos y suben el comprobante de su transferencia; el
+tesorero registra las lecturas del medidor y confirma los pagos desde un panel
+protegido. El **consumo y el monto se calculan automáticamente** a partir de una
+tarifa configurable — el tesorero nunca escribe el valor a mano.
 
-**Stack:** Next.js + Tailwind + shadcn/ui (frontend) · Convex (base de datos y
-backend) · Vercel (despliegue).
+Está pensada como producto **reutilizable (white-label)**: cada junta cambia su
+nombre, tarifa y cuenta bancaria desde el propio panel, sin tocar el código.
+
+**Demo en vivo:** https://junta-agua-yunguilla.vercel.app
+
+> Público objetivo: comunidades rurales, muchos usuarios de edad avanzada. Por eso
+> la interfaz prioriza **simplicidad, letras grandes, alto contraste y pocos pasos**.
 
 ---
 
-## Cómo levantarlo por primera vez
+## Características
 
-Necesitas Node.js y una cuenta de Convex (gratuita).
+**Para el socio (público)**
+- Consulta por **cédula + apellido**.
+- Planilla del mes con **desglose** (tarifa básica, excedente, multas) y monto total.
+- **Historial de pagos por año**, con cada mes desplegable para ver su detalle.
+- Descarga de la planilla en **PDF**.
+- Datos de la cuenta bancaria y **subida del comprobante** (foto o archivo) → queda "En revisión".
 
-### 1. Conectar Convex (una sola vez)
+**Para el tesorero (panel con clave)**
+- **Registro de lectura** del medidor: solo ingresa la lectura nueva; el sistema calcula el consumo y el monto.
+- **Cierre de mes por lote**: registra la lectura de todos los socios activos de una vez.
+- Alta, edición y baja de **socios**.
+- **Multas** (mora / minga / otro) sumadas a una planilla.
+- **Confirmar / rechazar** pagos revisando el comprobante.
+- **Configuración**: nombre de la junta, tarifa (básica + excedente) y cuenta bancaria.
 
-En una terminal, dentro de la carpeta del proyecto:
+---
+
+## Stack
+
+| Capa | Tecnología |
+|---|---|
+| Frontend | Next.js (App Router) + TypeScript + Tailwind CSS + shadcn/ui |
+| Backend / Base de datos / Archivos | [Convex](https://convex.dev) (funciones, datos reactivos y File Storage) |
+| PDF | jsPDF (generado en el navegador) |
+| Despliegue | Vercel (frontend) + Convex (nube) |
+
+**Puntos de diseño destacables**
+- **Integridad del cobro:** el consumo y el monto siempre se calculan en el backend; nunca son campos editables (menos errores, más transparencia).
+- **Datos reactivos:** las pantallas se actualizan solas cuando cambian los datos, sin recargar.
+- **Seguridad del panel:** cada acción del tesorero se valida contra una sesión en el backend; la clave vive fuera del repositorio.
+
+---
+
+## Puesta en marcha
+
+Requiere Node.js y una cuenta de Convex (gratuita).
 
 ```bash
+# 1. Instalar dependencias
+npm install
+
+# 2. Conectar Convex (una sola vez): inicia sesión, crea el proyecto,
+#    genera convex/_generated y el .env.local. Déjalo corriendo.
 npx convex dev
+
+# 3. En otra terminal, levantar la web
+npm run dev            # http://localhost:3000
 ```
 
-- Te pedirá **iniciar sesión** (abre el navegador) y **crear/elegir un proyecto**.
-- Esto genera la carpeta `convex/_generated`, crea el archivo `.env.local` con la
-  variable `NEXT_PUBLIC_CONVEX_URL` y queda **escuchando cambios**. Déjalo corriendo.
+Luego, en `http://localhost:3000/admin`, presiona **"Cargar datos de ejemplo"**
+para crear socios, tarifa y cuenta de muestra con varios meses de historial.
 
-### 2. Levantar la página web
+---
 
-En **otra** terminal:
+## Configuración
+
+Todo se ajusta desde el panel del tesorero (pestaña **Configuración**), sin tocar código:
+
+- **Nombre de la junta** — aparece en la página, el título y el PDF.
+- **Tarifa** — valor básico, m³ incluidos y precio del excedente.
+- **Cuenta bancaria** — banco, número, titular e identificación.
+
+La **clave del tesorero** no se guarda en el código, sino como variable de entorno
+de Convex:
 
 ```bash
-npm run dev
+npx convex env set CLAVE_ADMIN 'tu-clave-secreta'
 ```
 
-Abre http://localhost:3000
-
-### 3. Cargar datos de ejemplo
-
-1. Entra a http://localhost:3000/admin (panel del tesorero).
-2. Presiona **"Cargar datos de ejemplo"** (crea 5 socios y la cuenta bancaria).
-3. Vuelve a la página principal y consulta, por ejemplo:
-   - Cédula **0102030405**, apellido **Guamán** → deuda de María Rosa.
-   - Otros: `0203040506` / Quizhpi, `0304050607` / Lema, `0405060708` / Cabrera.
+La sesión dura 8 horas. En la demo pública la clave es `yunguilla2026`.
 
 ---
 
-## Qué incluye esta versión inicial
+## Estructura
 
-- ✅ Consulta pública por **cédula + apellido** con tarjeta de deuda.
-- ✅ Estados de pago (Por pagar / En revisión / Pagado).
-- ✅ Panel del tesorero con la **lista de socios** (lee de Convex en tiempo real).
-- ✅ **Clave de acceso** al panel (validada en el backend, con sesión de 8 horas).
-- ✅ **Crear, editar y eliminar** socios desde el panel del tesorero.
-- ✅ **Confirmar / rechazar** el pago de un socio (cambia el estado).
-- ✅ Acciones del panel **protegidas por sesión** en el backend.
-- ✅ Carga de datos de ejemplo.
-- ✅ Diseño simple, letras grandes (pensado para adultos mayores).
+```
+app/            Next.js App Router
+  page.tsx      Consulta pública del socio
+  admin/        Panel del tesorero (socios, cierre de mes, configuración)
+convex/         Esquema, funciones de servidor y almacenamiento
+  schema.ts     Tablas e índices
+  socios.ts     Identidad de socios
+  planillas.ts  Motor de cobro (lecturas, cálculo, multas, comprobantes)
+  ...
+lib/            Utilidades de presentación y generación de PDF
+```
 
-## Pendiente (siguientes etapas)
-
-- ⏳ Mostrar la **cuenta bancaria** y **subir el comprobante** de pago (lado del socio).
-- ⏳ Descargar el comprobante de deuda en **PDF**.
-- ⏳ Despliegue en **Vercel** (frontend) + Convex de producción.
-
-Ver el detalle completo de requerimientos en [PRD.md](PRD.md).
-
----
-
-## Clave del administrador
-
-La clave del panel del tesorero **no se guarda en el código**, sino como variable
-de entorno en Convex (`CLAVE_ADMIN`).
-
-- **Clave temporal de la muestra:** `yunguilla2026`
-- **Para cambiarla** por una propia, corre en la terminal:
-  ```
-  npx convex env set CLAVE_ADMIN 'tu-clave-secreta'
-  ```
-- La sesión del tesorero dura 8 horas; luego pide la clave otra vez.
+El detalle completo de requerimientos está en [PRD.md](PRD.md).
