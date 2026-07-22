@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { NOMBRE_JUNTA_POR_DEFECTO } from "@/lib/formato";
 import { AvisoError, Campo, mensajeError } from "./comunes";
 
 /** Sección de configuración: tarifa del agua y cuenta bancaria de la junta. */
@@ -20,6 +21,23 @@ export function Configuracion({ token }: { token: string }) {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">Nombre de la junta</CardTitle>
+          <CardDescription className="text-base">
+            Este nombre aparece en la página, el título y el PDF. Cámbielo por el
+            de su junta de agua.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {config === undefined ? (
+            <p className="text-muted-foreground">Cargando…</p>
+          ) : (
+            <FormNombre token={token} inicial={config?.nombreJunta ?? ""} />
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-xl">Tarifa del agua</CardTitle>
@@ -52,6 +70,45 @@ export function Configuracion({ token }: { token: string }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function FormNombre({ token, inicial }: { token: string; inicial: string }) {
+  const actualizar = useMutation(api.config.actualizarNombre);
+  const [nombreJunta, setNombreJunta] = useState(inicial);
+  const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+
+  async function guardar(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setOk(false);
+    setGuardando(true);
+    try {
+      await actualizar({ token, nombreJunta: nombreJunta.trim() });
+      setOk(true);
+    } catch (err) {
+      setError(mensajeError(err, "No se pudo guardar el nombre."));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={guardar} className="space-y-4">
+      <Campo
+        label="Nombre de la junta"
+        value={nombreJunta}
+        onChange={setNombreJunta}
+        placeholder={NOMBRE_JUNTA_POR_DEFECTO}
+      />
+      <AvisoError mensaje={error} />
+      {ok && <p className="text-base font-medium text-green-700">Nombre guardado.</p>}
+      <Button type="submit" size="lg" disabled={guardando}>
+        {guardando ? "Guardando…" : "Guardar nombre"}
+      </Button>
+    </form>
   );
 }
 

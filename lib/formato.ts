@@ -1,5 +1,13 @@
 // Ayudas de presentación compartidas por las páginas.
 
+/** Nombre visible por defecto cuando la junta aún no configuró el suyo. */
+export const NOMBRE_JUNTA_POR_DEFECTO = "Junta de Agua";
+
+/** Nombre de la junta a mostrar: el configurado o el genérico por defecto. */
+export function nombreJuntaMostrar(nombre?: string | null): string {
+  return nombre?.trim() ? nombre.trim() : NOMBRE_JUNTA_POR_DEFECTO;
+}
+
 export type Estado = "por_pagar" | "en_revision" | "pagado";
 export type TipoMulta = "mora" | "minga" | "otro";
 

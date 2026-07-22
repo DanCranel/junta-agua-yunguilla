@@ -1,6 +1,13 @@
 // Generación del PDF de una planilla (comprobante de deuda) con jsPDF.
 import { jsPDF } from "jspdf";
-import { dinero, fechaLegible, periodoLegible, ESTADO_INFO, TIPO_MULTA } from "./formato";
+import {
+  dinero,
+  fechaLegible,
+  nombreJuntaMostrar,
+  periodoLegible,
+  ESTADO_INFO,
+  TIPO_MULTA,
+} from "./formato";
 import type { Estado, TipoMulta } from "./formato";
 
 type Multa = { tipo: string; descripcion: string; monto: number };
@@ -33,6 +40,7 @@ type ArgsPDF = {
   };
   tarifa: Tarifa;
   config: {
+    nombreJunta?: string;
     banco: string;
     tipoCuenta: string;
     numeroCuenta: string;
@@ -54,7 +62,7 @@ export function descargarPlanillaPDF({ socio, planilla, tarifa, config }: ArgsPD
   // Encabezado.
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.text("Junta de Agua", margen, y);
+  doc.text(nombreJuntaMostrar(config?.nombreJunta), margen, y);
   salto(8);
   doc.setFontSize(13);
   doc.setFont("helvetica", "normal");

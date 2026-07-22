@@ -65,8 +65,9 @@ export default defineSchema({
     precioExcedente: v.number(), // valor por m³ adicional
   }),
 
-  // Configuración única: cuenta bancaria de la junta.
+  // Configuración única: nombre de la junta + cuenta bancaria.
   config: defineTable({
+    nombreJunta: v.optional(v.string()), // marca visible; cada junta pone el suyo
     banco: v.string(),
     tipoCuenta: v.string(),
     numeroCuenta: v.string(),
