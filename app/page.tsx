@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -20,6 +20,7 @@ import {
   TIPO_MULTA,
   dinero,
   fechaLegible,
+  nombreJuntaMostrar,
   nombreMes,
   periodoLegible,
   type Estado,
@@ -66,6 +67,7 @@ type Tarifa = {
 };
 
 type Config = {
+  nombreJunta?: string;
   banco: string;
   tipoCuenta: string;
   numeroCuenta: string;
@@ -88,8 +90,34 @@ export default function ConsultaPage() {
 
   // Solo consulta cuando ya se presionó el botón.
   const resultado = useQuery(api.socios.buscar, busqueda ? busqueda : "skip");
+  const config = useQuery(api.config.obtener, {}) as Config | undefined;
+
+  const nombreJunta = nombreJuntaMostrar(config?.nombreJunta);
 
   const cargando = busqueda !== null && resultado === undefined;
+
+  // Ancla para bajar la pantalla automáticamente cuando llega el resultado, de
+  // modo que el usuario vea que abajo cargó su información (audiencia mayor).
+  const resultadoRef = useRef<HTMLDivElement>(null);
+
+  // El título de la pestaña sigue el nombre configurado por la junta.
+  useEffect(() => {
+    document.title = nombreJunta;
+  }, [nombreJunta]);
+
+  // Al llegar el resultado de una búsqueda, desplaza suavemente hacia él para
+  // que el usuario note que abajo cargó su información. Se difiere un momento
+  // para que el resultado ya esté pintado y el desplazamiento sea consistente.
+  const scrollHechoRef = useRef<object | null>(null);
+  useEffect(() => {
+    if (!busqueda || resultado === undefined) return;
+    if (scrollHechoRef.current === busqueda) return; // una sola vez por búsqueda
+    scrollHechoRef.current = busqueda;
+    const id = setTimeout(() => {
+      resultadoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+    return () => clearTimeout(id);
+  }, [busqueda, resultado]);
 
   function consultar(e: React.FormEvent) {
     e.preventDefault();
@@ -101,7 +129,7 @@ export default function ConsultaPage() {
     <main className="mx-auto w-full max-w-xl px-4 py-8">
       <header className="mb-8 text-center">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Junta de Agua
+          {nombreJunta}
         </h1>
         <p className="mt-2 text-lg text-muted-foreground">
           Consulte cuánto debe por el servicio de agua
@@ -153,22 +181,24 @@ export default function ConsultaPage() {
         </CardContent>
       </Card>
 
-      {/* Resultado de la consulta */}
-      {resultado && resultado.encontrado === false && (
-        <Card className="mt-6 border-red-200">
-          <CardContent className="py-6 text-center text-lg">
-            No encontramos datos con esa cédula y apellido. Revise que estén
-            bien escritos o acérquese a la junta.
-          </CardContent>
-        </Card>
-      )}
+      {/* Resultado de la consulta (ancla del desplazamiento automático) */}
+      <div ref={resultadoRef} className="scroll-mt-4">
+        {resultado && resultado.encontrado === false && (
+          <Card className="mt-6 border-red-200">
+            <CardContent className="py-6 text-center text-lg">
+              No encontramos datos con esa cédula y apellido. Revise que estén
+              bien escritos o acérquese a la junta.
+            </CardContent>
+          </Card>
+        )}
 
-      {resultado && resultado.encontrado === true && (
-        <ResultadoSocio
-          socio={resultado.socio}
-          planillas={resultado.planillas}
-        />
-      )}
+        {resultado && resultado.encontrado === true && (
+          <ResultadoSocio
+            socio={resultado.socio}
+            planillas={resultado.planillas}
+          />
+        )}
+      </div>
 
       <div className="mt-10 text-center">
         <Link
@@ -371,6 +401,15 @@ function SubirComprobante({ planillaId }: { planillaId: string }) {
   const [archivo, setArchivo] = useState<File | null>(null);
   const [estado, setEstado] = useState<EstadoSubida>("idle");
 
+  // Inputs de archivo ocultos: los disparan los botones grandes de abajo.
+  const camaraRef = useRef<HTMLInputElement>(null);
+  const archivoRef = useRef<HTMLInputElement>(null);
+
+  function elegir(e: React.ChangeEvent<HTMLInputElement>) {
+    setArchivo(e.target.files?.[0] ?? null);
+    if (estado === "error") setEstado("idle");
+  }
+
   async function enviar() {
     if (!archivo) return;
     setEstado("subiendo");
@@ -402,27 +441,71 @@ function SubirComprobante({ planillaId }: { planillaId: string }) {
     );
   }
 
+  const deshabilitado = estado === "subiendo";
+
   return (
-    <div className="space-y-3 rounded-lg border p-4">
+    <div className="space-y-4 rounded-lg border p-4">
       <div className="text-base font-semibold">Subir comprobante de pago</div>
       <p className="text-base text-muted-foreground">
-        Elija la foto o el archivo PDF de su comprobante.
+        Tome una foto de su comprobante o suba el archivo desde su teléfono.
       </p>
-      <Input
+
+      {/* Inputs ocultos */}
+      <input
+        ref={camaraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={elegir}
+      />
+      <input
+        ref={archivoRef}
         type="file"
         accept="image/*,application/pdf"
-        onChange={(e) => {
-          setArchivo(e.target.files?.[0] ?? null);
-          if (estado === "error") setEstado("idle");
-        }}
-        disabled={estado === "subiendo"}
-        className="h-14 text-lg file:mr-3 file:text-base"
+        className="hidden"
+        onChange={elegir}
       />
+
+      {/* Dos botones grandes con interacción al pasar el mouse */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <BotonSubida
+          emoji="📷"
+          titulo="Tomar foto"
+          descripcion="Con la cámara"
+          onClick={() => camaraRef.current?.click()}
+          disabled={deshabilitado}
+        />
+        <BotonSubida
+          emoji="📎"
+          titulo="Subir archivo"
+          descripcion="Foto o PDF guardado"
+          onClick={() => archivoRef.current?.click()}
+          disabled={deshabilitado}
+        />
+      </div>
+
+      {/* Archivo elegido */}
+      {archivo && (
+        <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-base">
+          <span aria-hidden>✅</span>
+          <span className="min-w-0 flex-1 truncate font-medium">{archivo.name}</span>
+          <button
+            type="button"
+            onClick={() => setArchivo(null)}
+            disabled={deshabilitado}
+            className="shrink-0 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          >
+            Quitar
+          </button>
+        </div>
+      )}
+
       <Button
         type="button"
         className="h-14 w-full text-lg"
         onClick={enviar}
-        disabled={!archivo || estado === "subiendo"}
+        disabled={!archivo || deshabilitado}
       >
         {estado === "subiendo" ? "Subiendo…" : "Enviar comprobante"}
       </Button>
@@ -432,6 +515,36 @@ function SubirComprobante({ planillaId }: { planillaId: string }) {
         </p>
       )}
     </div>
+  );
+}
+
+/** Botón grande de subida con emoji, título y realce al pasar el mouse. */
+function BotonSubida({
+  emoji,
+  titulo,
+  descripcion,
+  onClick,
+  disabled,
+}: {
+  emoji: string;
+  titulo: string;
+  descripcion: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-input bg-card p-5 text-center transition-all hover:-translate-y-0.5 hover:border-primary hover:bg-primary/5 hover:shadow-md focus-visible:border-primary focus-visible:outline-none active:translate-y-0 disabled:pointer-events-none disabled:opacity-50"
+    >
+      <span className="text-3xl" aria-hidden>
+        {emoji}
+      </span>
+      <span className="text-lg font-semibold">{titulo}</span>
+      <span className="text-sm text-muted-foreground">{descripcion}</span>
+    </button>
   );
 }
 
