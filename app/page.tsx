@@ -249,7 +249,7 @@ function ResultadoSocio({
         </Card>
       )}
 
-      <HistorialAnios planillas={planillas} />
+      <HistorialAnios planillas={planillas} tarifa={tarifa} />
     </div>
   );
 }
@@ -552,7 +552,13 @@ function BotonSubida({
 // Historial de pagos agrupado por año.
 // ---------------------------------------------------------------------------
 
-function HistorialAnios({ planillas }: { planillas: Planilla[] }) {
+function HistorialAnios({
+  planillas,
+  tarifa,
+}: {
+  planillas: Planilla[];
+  tarifa: Tarifa | undefined;
+}) {
   if (planillas.length === 0) return null;
 
   // Agrupa por año conservando el orden DESC de la lista de entrada.
@@ -569,6 +575,9 @@ function HistorialAnios({ planillas }: { planillas: Planilla[] }) {
   return (
     <section className="space-y-3">
       <h2 className="text-2xl font-bold">Historial de pagos</h2>
+      <p className="text-base text-muted-foreground">
+        Toque un mes para ver el detalle.
+      </p>
       {anios.map((anio, i) => (
         <details
           key={anio}
@@ -580,7 +589,7 @@ function HistorialAnios({ planillas }: { planillas: Planilla[] }) {
           </summary>
           <div className="border-t">
             {porAnio.get(anio)!.map((p) => (
-              <FilaHistorial key={p._id} planilla={p} />
+              <FilaHistorial key={p._id} planilla={p} tarifa={tarifa} />
             ))}
           </div>
         </details>
@@ -589,26 +598,91 @@ function HistorialAnios({ planillas }: { planillas: Planilla[] }) {
   );
 }
 
-function FilaHistorial({ planilla }: { planilla: Planilla }) {
+/**
+ * Fila de un mes en el historial: se muestra compacta y, al tocarla, se
+ * despliega hacia abajo el desglose completo (consumo, lecturas, tarifa,
+ * excedente, multas, total y fechas) para el socio.
+ */
+function FilaHistorial({
+  planilla,
+  tarifa,
+}: {
+  planilla: Planilla;
+  tarifa: Tarifa | undefined;
+}) {
   const consumo = Math.max(0, planilla.consumo);
+  const m3Excedente = tarifa
+    ? Math.max(0, planilla.consumo - tarifa.consumoIncluido)
+    : 0;
+  const montoExcedente = tarifa
+    ? Math.round((planilla.montoConsumo - tarifa.tarifaBasica) * 100) / 100
+    : 0;
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-4 last:border-b-0">
-      <div className="min-w-0">
-        <div className="text-lg font-medium">{nombreMes(planilla.mes)}</div>
-        <div className="text-base text-muted-foreground">{consumo} m³</div>
-        {planilla.estado === "pagado" && planilla.fechaPago && (
-          <div className="text-sm text-muted-foreground">
-            Pagado el {fechaLegible(planilla.fechaPago)}
+    <details className="group border-b last:border-b-0">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-4 transition-colors hover:bg-muted/40">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className="text-lg text-muted-foreground transition-transform group-open:rotate-90"
+            aria-hidden
+          >
+            ▸
+          </span>
+          <div className="min-w-0">
+            <div className="text-lg font-medium">{nombreMes(planilla.mes)}</div>
+            <div className="text-base text-muted-foreground">{consumo} m³</div>
           </div>
-        )}
-      </div>
-      <div className="flex flex-col items-end gap-1">
-        <div className="text-lg font-semibold">
-          {dinero(planilla.montoTotal)}
         </div>
-        <EstadoBadge estado={planilla.estado} />
+        <div className="flex flex-col items-end gap-1">
+          <div className="text-lg font-semibold">
+            {dinero(planilla.montoTotal)}
+          </div>
+          <EstadoBadge estado={planilla.estado} />
+        </div>
+      </summary>
+
+      {/* Detalle desplegado, bien estructurado */}
+      <div className="border-t bg-muted/20 px-4 py-3">
+        <dl className="space-y-2">
+          <Fila etiqueta="Consumo del mes" valor={`${consumo} m³`} />
+          <Fila
+            etiqueta="Lectura anterior → actual"
+            valor={`${planilla.lecturaAnterior} → ${planilla.lecturaActual}`}
+          />
+          {tarifa && (
+            <Fila etiqueta="Tarifa básica" valor={dinero(tarifa.tarifaBasica)} />
+          )}
+          {tarifa && m3Excedente > 0 && (
+            <Fila
+              etiqueta={`Excedente ${m3Excedente} m³ × ${dinero(
+                tarifa.precioExcedente,
+              )}`}
+              valor={dinero(montoExcedente)}
+            />
+          )}
+          {planilla.multas.map((m, i) => (
+            <Fila
+              key={i}
+              etiqueta={`${TIPO_MULTA[m.tipo as TipoMulta] ?? m.tipo}${
+                m.descripcion ? ` — ${m.descripcion}` : ""
+              }`}
+              valor={dinero(m.monto)}
+            />
+          ))}
+          <Fila etiqueta="Total" valor={dinero(planilla.montoTotal)} fuerte />
+          <Fila
+            etiqueta="Pagar hasta"
+            valor={fechaLegible(planilla.fechaLimite)}
+          />
+          {planilla.estado === "pagado" && planilla.fechaPago && (
+            <Fila
+              etiqueta="Pagado el"
+              valor={fechaLegible(planilla.fechaPago)}
+            />
+          )}
+        </dl>
       </div>
-    </div>
+    </details>
   );
 }
 
