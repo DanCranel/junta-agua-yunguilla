@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Junta de Agua de Yunguilla",
+  title: "Junta de Agua",
   description: "Consulta de deudas del servicio de agua",
 };
 

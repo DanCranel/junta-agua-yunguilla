@@ -59,7 +59,7 @@ export const sembrarEjemplo = mutation({
         banco: "Banco del Austro",
         tipoCuenta: "Ahorros",
         numeroCuenta: "1234567890",
-        titular: "Junta de Agua de Yunguilla",
+        titular: "Junta de Agua",
         identificacionTitular: "0190000000001",
       });
     }

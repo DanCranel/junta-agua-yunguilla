@@ -54,7 +54,7 @@ export function descargarPlanillaPDF({ socio, planilla, tarifa, config }: ArgsPD
   // Encabezado.
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.text("Junta de Agua de Yunguilla", margen, y);
+  doc.text("Junta de Agua", margen, y);
   salto(8);
   doc.setFontSize(13);
   doc.setFont("helvetica", "normal");
