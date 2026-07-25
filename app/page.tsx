@@ -362,10 +362,17 @@ function PlanillaPendiente({
             </p>
             <dl className="mt-3 space-y-2">
               <Fila etiqueta="Banco" valor={config.banco} />
-              <Fila
-                etiqueta={`Cuenta ${config.tipoCuenta}`}
-                valor={config.numeroCuenta}
-              />
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b py-2">
+                <dt className="text-muted-foreground">
+                  {`Cuenta ${config.tipoCuenta}`}
+                </dt>
+                <div className="flex items-center gap-3">
+                  <dd className="text-right font-medium">
+                    {config.numeroCuenta}
+                  </dd>
+                  <BotonCopiar texto={config.numeroCuenta} />
+                </div>
+              </div>
               <Fila etiqueta="Titular" valor={config.titular} />
               <Fila
                 etiqueta="Identificación"
@@ -720,5 +727,61 @@ function Fila({
       <dt className={fuerte ? "" : "text-muted-foreground"}>{etiqueta}</dt>
       <dd className="text-right font-medium">{valor}</dd>
     </div>
+  );
+}
+
+/**
+ * Botón para copiar un texto (p. ej. el número de cuenta) al portapapeles.
+ * Muestra "Copiado ✓" durante ~2 segundos y luego vuelve a "Copiar".
+ */
+function BotonCopiar({ texto }: { texto: string }) {
+  const [copiado, setCopiado] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  async function copiar() {
+    let exito = false;
+    try {
+      await navigator.clipboard.writeText(texto);
+      exito = true;
+    } catch {
+      // Respaldo para navegadores sin acceso al portapapeles.
+      try {
+        const area = document.createElement("textarea");
+        area.value = texto;
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.focus();
+        area.select();
+        exito = document.execCommand("copy");
+        document.body.removeChild(area);
+      } catch {
+        exito = false;
+      }
+    }
+
+    if (exito) {
+      setCopiado(true);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => setCopiado(false), 2000);
+    }
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={copiar}
+      aria-live="polite"
+      className="h-11 px-4 text-base"
+    >
+      {copiado ? "Copiado ✓" : "Copiar"}
+    </Button>
   );
 }
