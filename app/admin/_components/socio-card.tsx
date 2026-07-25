@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,25 @@ export function SocioCard({ token, socio }: { token: string; socio: SocioListado
 
   const nombre = `${socio.apellidos} ${socio.nombres}`;
   const pendiente = socio.pendiente;
+  const [pagando, setPagando] = useState(false);
+
+  // Cobro en la mesa: marca la planilla como pagada al instante.
+  async function registrarPagoEfectivo() {
+    if (!pendiente) return;
+    if (
+      !confirm(
+        `¿Confirmar que ${nombre} pagó ${dinero(pendiente.montoTotal)} en efectivo?`,
+      )
+    ) {
+      return;
+    }
+    setPagando(true);
+    try {
+      await confirmarPago({ token, planillaId: pendiente._id });
+    } finally {
+      setPagando(false);
+    }
+  }
 
   async function eliminarSocio() {
     if (!confirm(`¿Eliminar a ${nombre} y todo su historial? Esta acción no se puede deshacer.`)) {
@@ -62,6 +82,23 @@ export function SocioCard({ token, socio }: { token: string; socio: SocioListado
           </p>
         ) : (
           <p className="text-base text-muted-foreground">Sin planillas pendientes.</p>
+        )}
+
+        {/* Cobro en efectivo (en la mesa): pago directo de una planilla por pagar */}
+        {pendiente?.estado === "por_pagar" && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md bg-green-50 p-3">
+            <span className="text-sm text-green-800">
+              ¿Está pagando en efectivo?
+            </span>
+            <Button
+              size="sm"
+              className="ml-auto bg-green-600 text-white hover:bg-green-700"
+              onClick={registrarPagoEfectivo}
+              disabled={pagando}
+            >
+              {pagando ? "Guardando…" : "Registrar pago en efectivo"}
+            </Button>
+          </div>
         )}
 
         {/* Comprobante pendiente de revisión */}
