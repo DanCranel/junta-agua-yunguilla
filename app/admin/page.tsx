@@ -19,6 +19,7 @@ import { CierreMes } from "./_components/cierre-mes";
 import { Configuracion } from "./_components/configuracion";
 import { FormSocio } from "./_components/form-socio";
 import { SocioCard } from "./_components/socio-card";
+import { normalizar } from "@/convex/lib";
 
 const TOKEN_KEY = "juntaAdminToken";
 
@@ -209,6 +210,7 @@ function SeccionSocios({ token }: { token: string }) {
   const socios = useQuery(api.socios.listar, { token });
   const sembrar = useMutation(api.seed.sembrarEjemplo);
   const [sembrando, setSembrando] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
 
   async function cargarEjemplos() {
     setSembrando(true);
@@ -218,6 +220,19 @@ function SeccionSocios({ token }: { token: string }) {
       setSembrando(false);
     }
   }
+
+  const consulta = normalizar(busqueda);
+  const consultaDigitos = busqueda.replace(/\D/g, "");
+  const sociosFiltrados =
+    socios && consulta
+      ? socios.filter((s) => {
+          const nombreCompleto = normalizar(`${s.nombres} ${s.apellidos}`);
+          const coincideNombre = nombreCompleto.includes(consulta);
+          const coincideCedula =
+            consultaDigitos.length > 0 && s.cedula.includes(consultaDigitos);
+          return coincideNombre || coincideCedula;
+        })
+      : socios;
 
   return (
     <div>
@@ -238,11 +253,32 @@ function SeccionSocios({ token }: { token: string }) {
         </Card>
       )}
 
-      {socios && socios.length > 0 && (
+      {socios && socios.length > 0 && sociosFiltrados && (
         <div className="space-y-3">
-          {socios.map((s) => (
-            <SocioCard key={s._id} token={token} socio={s} />
-          ))}
+          <Input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar socio por nombre o cédula…"
+            className="h-14 text-lg"
+          />
+
+          <p className="text-muted-foreground">
+            {consulta
+              ? `${sociosFiltrados.length} de ${socios.length} socios`
+              : `${socios.length} socios`}
+          </p>
+
+          {sociosFiltrados.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-lg">
+                No se encontró ningún socio con ese nombre o cédula.
+              </CardContent>
+            </Card>
+          ) : (
+            sociosFiltrados.map((s) => (
+              <SocioCard key={s._id} token={token} socio={s} />
+            ))
+          )}
         </div>
       )}
     </div>
