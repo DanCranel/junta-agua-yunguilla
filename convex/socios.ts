@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
-import { normalizar, soloDigitos } from "./lib";
+import { normalizar, soloDigitos, coincideApellido } from "./lib";
 import { requerirSesion, sesionActiva } from "./auth";
 
 // Campos de identidad de un socio (reutilizados en crear y actualizar).
@@ -33,10 +33,7 @@ export const buscar = query({
 
     if (!socio) return { encontrado: false as const };
 
-    const apBuscado = normalizar(apellido);
-    const apellidos = normalizar(socio.apellidos);
-    const primerApellido = apellidos.split(/\s+/)[0] ?? "";
-    if (apBuscado !== apellidos && apBuscado !== primerApellido) {
+    if (!coincideApellido(apellido, socio.apellidos)) {
       return { encontrado: false as const };
     }
 

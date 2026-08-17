@@ -80,4 +80,12 @@ export default defineSchema({
     token: v.string(),
     expiraEn: v.number(), // marca de tiempo (ms) en que caduca la sesión
   }).index("by_token", ["token"]),
+
+  // Control de intentos de acceso al panel (protección básica contra fuerza
+  // bruta). Doc único: cuenta fallos seguidos y, superado el límite, bloquea el
+  // ingreso por un tiempo corto.
+  accesoAdmin: defineTable({
+    intentosFallidos: v.number(),
+    bloqueadoHasta: v.number(), // ms; 0 = sin bloqueo
+  }),
 });

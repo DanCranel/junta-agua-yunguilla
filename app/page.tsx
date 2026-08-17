@@ -388,7 +388,11 @@ function PlanillaPendiente({
             Su comprobante está en revisión. La tesorería lo confirmará pronto.
           </div>
         ) : (
-          <SubirComprobante planillaId={planilla._id} />
+          <SubirComprobante
+            planillaId={planilla._id}
+            cedula={socio.cedula}
+            apellido={socio.apellidos}
+          />
         )}
       </CardContent>
     </Card>
@@ -401,12 +405,21 @@ function PlanillaPendiente({
 
 type EstadoSubida = "idle" | "subiendo" | "exito" | "error";
 
-function SubirComprobante({ planillaId }: { planillaId: string }) {
+function SubirComprobante({
+  planillaId,
+  cedula,
+  apellido,
+}: {
+  planillaId: string;
+  cedula: string;
+  apellido: string;
+}) {
   const generarUrlSubida = useMutation(api.planillas.generarUrlSubida);
   const adjuntarComprobante = useMutation(api.planillas.adjuntarComprobante);
 
   const [archivo, setArchivo] = useState<File | null>(null);
   const [estado, setEstado] = useState<EstadoSubida>("idle");
+  const [mensajeError, setMensajeError] = useState<string | null>(null);
 
   // Inputs de archivo ocultos: los disparan los botones grandes de abajo.
   const camaraRef = useRef<HTMLInputElement>(null);
@@ -420,8 +433,9 @@ function SubirComprobante({ planillaId }: { planillaId: string }) {
   async function enviar() {
     if (!archivo) return;
     setEstado("subiendo");
+    setMensajeError(null);
     try {
-      const url = await generarUrlSubida();
+      const url = await generarUrlSubida({ cedula, apellido });
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": archivo.type },
@@ -429,13 +443,29 @@ function SubirComprobante({ planillaId }: { planillaId: string }) {
       });
       if (!res.ok) throw new Error("Fallo la subida del archivo");
       const { storageId } = await res.json();
-      await adjuntarComprobante({
+      const resultado = await adjuntarComprobante({
         planillaId: planillaId as Id<"planillas">,
         storageId,
+        cedula,
+        apellido,
       });
+      // El servidor puede rechazar el archivo (tipo/tamaño) o la identidad y
+      // devuelve el motivo; en ese caso lo mostramos sin tratarlo como caída.
+      if (!resultado.ok) {
+        setMensajeError(resultado.mensaje);
+        setEstado("error");
+        return;
+      }
       setEstado("exito");
       setArchivo(null);
-    } catch {
+    } catch (err) {
+      // Error inesperado (red, o identidad rechazada al pedir la URL de subida).
+      const data = (err as { data?: unknown }).data;
+      const mensaje =
+        data && typeof data === "object" && "mensaje" in data
+          ? String((data as { mensaje: unknown }).mensaje)
+          : null;
+      setMensajeError(mensaje);
       setEstado("error");
     }
   }
@@ -518,7 +548,7 @@ function SubirComprobante({ planillaId }: { planillaId: string }) {
       </Button>
       {estado === "error" && (
         <p className="text-center text-base text-red-700">
-          No se pudo enviar el comprobante. Intente de nuevo.
+          {mensajeError ?? "No se pudo enviar el comprobante. Intente de nuevo."}
         </p>
       )}
     </div>

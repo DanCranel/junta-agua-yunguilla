@@ -7,9 +7,13 @@ import {
   calcularConsumo,
   calcularMontoConsumo,
   calcularMontoTotal,
+  coincideApellido,
   fechaHoyISO,
   normalizar,
+  soloDigitos,
   ultimoDiaDelMes,
+  COMPROBANTE_TIPOS_OK,
+  COMPROBANTE_MAX_BYTES,
   TARIFA_POR_DEFECTO,
   type Tarifa,
 } from "./lib";
@@ -404,25 +408,113 @@ export const rechazarPago = mutation({
   },
 });
 
-/** Genera una URL para que el socio suba su comprobante. Pública. */
+/**
+ * Busca al socio por cédula + apellido (misma regla que la consulta pública).
+ * Devuelve el socio si la identidad coincide, o null. Sirve para autorizar las
+ * acciones "públicas" del socio (subida de comprobante) sin sesión de tesorero.
+ */
+async function socioPorIdentidad(
+  ctx: QueryCtx,
+  cedula: string,
+  apellido: string,
+) {
+  const ced = soloDigitos(cedula);
+  if (!ced) return null;
+  const socio = await ctx.db
+    .query("socios")
+    .withIndex("by_cedula", (q) => q.eq("cedula", ced))
+    .first();
+  if (!socio) return null;
+  return coincideApellido(apellido, socio.apellidos) ? socio : null;
+}
+
+/**
+ * Genera una URL para que el socio suba su comprobante. No requiere sesión de
+ * tesorero, pero sí verifica la identidad del socio (cédula + apellido) para no
+ * exponer la subida de archivos de forma anónima.
+ */
 export const generarUrlSubida = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { cedula: v.string(), apellido: v.string() },
+  handler: async (ctx, { cedula, apellido }) => {
+    const socio = await socioPorIdentidad(ctx, cedula, apellido);
+    if (!socio) {
+      throw new ConvexError({
+        codigo: "no_autorizado",
+        mensaje: "No se pudo verificar su identidad.",
+      });
+    }
     return await ctx.storage.generateUploadUrl();
   },
 });
 
 /**
  * Adjunta el comprobante subido por el socio y pasa la planilla a en_revision.
- * Pública (la usa el socio, sin token).
+ * La usa el socio (sin sesión de tesorero), por eso valida en el servidor:
+ *  - la identidad (cédula + apellido) y que la planilla sea suya,
+ *  - que el archivo sea una imagen o PDF dentro del tamaño permitido,
+ *  - que la planilla no esté ya pagada.
+ * Si algo falla, borra el archivo recién subido para no dejar huérfanos.
  */
 export const adjuntarComprobante = mutation({
-  args: { planillaId: v.id("planillas"), storageId: v.id("_storage") },
-  handler: async (ctx, { planillaId, storageId }) => {
+  args: {
+    planillaId: v.id("planillas"),
+    storageId: v.id("_storage"),
+    cedula: v.string(),
+    apellido: v.string(),
+  },
+  handler: async (ctx, { planillaId, storageId, cedula, apellido }) => {
+    // Borra el archivo recién subido y devuelve el rechazo. Importante: NO se
+    // lanza un error, porque una mutation de Convex es transaccional y un throw
+    // revertiría también el `storage.delete`, dejando el archivo huérfano.
+    // Devolver un resultado confirma la transacción (y con ella, el borrado).
+    async function rechazar(mensaje: string) {
+      await ctx.storage.delete(storageId);
+      return { ok: false as const, mensaje };
+    }
+
+    // 1) Validar el archivo subido (tipo y tamaño) contra su metadato real,
+    //    no contra lo que diga el cliente.
+    const meta = await ctx.db.system.get(storageId);
+    if (!meta) {
+      // No hay archivo almacenado que borrar.
+      return { ok: false as const, mensaje: "No se encontró el archivo subido." };
+    }
+    if (!meta.contentType || !COMPROBANTE_TIPOS_OK.includes(meta.contentType)) {
+      return await rechazar(
+        "El comprobante debe ser una imagen (JPG, PNG) o un PDF.",
+      );
+    }
+    if (meta.size > COMPROBANTE_MAX_BYTES) {
+      return await rechazar(
+        "El comprobante es demasiado grande (máximo 5 MB).",
+      );
+    }
+
+    // 2) Verificar identidad del socio y que la planilla le pertenezca.
+    const socio = await socioPorIdentidad(ctx, cedula, apellido);
+    const planilla = await ctx.db.get(planillaId);
+    if (!socio || !planilla || planilla.socioId !== socio._id) {
+      return await rechazar(
+        "No se pudo verificar su identidad para esta planilla.",
+      );
+    }
+
+    // 3) No permitir alterar una planilla ya confirmada como pagada.
+    if (planilla.estado === "pagado") {
+      return await rechazar(
+        "Esta planilla ya está pagada. No hace falta subir comprobante.",
+      );
+    }
+
+    // 4) Reemplazar el comprobante anterior sin dejar archivos huérfanos.
+    if (planilla.comprobanteId) {
+      await ctx.storage.delete(planilla.comprobanteId);
+    }
+
     await ctx.db.patch(planillaId, {
       comprobanteId: storageId,
       estado: "en_revision",
     });
-    return null;
+    return { ok: true as const };
   },
 });

@@ -14,6 +14,37 @@ export function soloDigitos(texto: string): string {
   return texto.replace(/\D/g, "");
 }
 
+/**
+ * Verifica si el apellido escrito coincide con el del socio: se acepta el
+ * apellido completo o solo el primero. Fuente única de esta regla, usada tanto
+ * por la consulta pública como por la verificación de identidad en la subida de
+ * comprobantes.
+ */
+export function coincideApellido(
+  apellidoBuscado: string,
+  apellidosSocio: string,
+): boolean {
+  const buscado = normalizar(apellidoBuscado);
+  const apellidos = normalizar(apellidosSocio);
+  const primero = apellidos.split(/\s+/)[0] ?? "";
+  return buscado === apellidos || buscado === primero;
+}
+
+// --- Validación del comprobante de pago (subido por el socio) ---
+
+/** Tipos de archivo aceptados como comprobante: fotos comunes o PDF. */
+export const COMPROBANTE_TIPOS_OK = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "application/pdf",
+];
+
+/** Tamaño máximo del comprobante: 5 MB. */
+export const COMPROBANTE_MAX_BYTES = 5 * 1024 * 1024;
+
 // --- Cálculo de la tarifa (núcleo de la v2, ver PRD §4.1) ---
 
 export type Multa = { tipo: string; descripcion: string; monto: number };

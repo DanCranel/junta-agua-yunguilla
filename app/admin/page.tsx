@@ -86,6 +86,10 @@ function PantallaIngreso({ onIngreso }: { onIngreso: (token: string) => void }) 
         setError(
           "La clave aún no está configurada en el servidor. Contacte al administrador del sistema.",
         );
+      } else if (r.motivo === "bloqueado") {
+        setError(
+          `Demasiados intentos fallidos. Espere ${r.segundos} segundos e intente de nuevo.`,
+        );
       } else {
         setError("Clave incorrecta. Intente de nuevo.");
       }
