@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Código generado por Convex (no se edita a mano).
+    "convex/_generated/**",
   ]),
 ]);
 

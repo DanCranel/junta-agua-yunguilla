@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -23,33 +23,55 @@ import { normalizar } from "@/convex/lib";
 
 const TOKEN_KEY = "juntaAdminToken";
 
-export default function AdminPage() {
-  const [token, setToken] = useState<string | null>(null);
-  const [listo, setListo] = useState(false);
+// El token del tesorero vive en localStorage (persiste entre recargas y se
+// sincroniza entre pestañas). Lo exponemos como "store externo" y lo leemos con
+// useSyncExternalStore: así evitamos hidratar estado con setState dentro de un
+// efecto (patrón desaconsejado, propenso a parpadeo y a desajustes en SSR).
+function suscribirseAlToken(alCambiar: () => void) {
+  window.addEventListener("storage", alCambiar);
+  window.addEventListener("token-tesorero", alCambiar);
+  return () => {
+    window.removeEventListener("storage", alCambiar);
+    window.removeEventListener("token-tesorero", alCambiar);
+  };
+}
 
-  useEffect(() => {
-    setToken(localStorage.getItem(TOKEN_KEY));
-    setListo(true);
-  }, []);
+function leerToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function escribirToken(token: string | null) {
+  if (token === null) localStorage.removeItem(TOKEN_KEY);
+  else localStorage.setItem(TOKEN_KEY, token);
+  // El evento "storage" solo llega a OTRAS pestañas; avisamos también a esta.
+  window.dispatchEvent(new Event("token-tesorero"));
+}
+
+/** true una vez que el componente se montó en el cliente (sin setState en efecto). */
+function useHidratado(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
+export default function AdminPage() {
+  const hidratado = useHidratado();
+  const token = useSyncExternalStore(suscribirseAlToken, leerToken, () => null);
 
   const sesionValida = useQuery(
     api.auth.validarSesion,
-    listo ? { token } : "skip",
+    hidratado ? { token } : "skip",
   );
   const cerrarSesion = useMutation(api.auth.cerrarSesion);
 
-  function guardarToken(nuevo: string) {
-    localStorage.setItem(TOKEN_KEY, nuevo);
-    setToken(nuevo);
-  }
-
   async function salir() {
     if (token) await cerrarSesion({ token }).catch(() => {});
-    localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
+    escribirToken(null);
   }
 
-  if (!listo || (token && sesionValida === undefined)) {
+  if (!hidratado || (token && sesionValida === undefined)) {
     return (
       <main className="mx-auto w-full max-w-md px-4 py-16 text-center text-muted-foreground">
         Cargando…
@@ -60,7 +82,7 @@ export default function AdminPage() {
   const autenticado = !!token && sesionValida === true;
 
   if (!autenticado || !token) {
-    return <PantallaIngreso onIngreso={guardarToken} />;
+    return <PantallaIngreso onIngreso={(nuevo) => escribirToken(nuevo)} />;
   }
 
   return <PanelTesorero token={token} onSalir={salir} />;
