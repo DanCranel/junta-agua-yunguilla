@@ -28,6 +28,7 @@ type SocioEjemplo = {
   nombres: string;
   apellidos: string;
   direccion?: string;
+  telefono?: string;
   numeroMedidor?: string;
   lecturaInicial: number;
   lecturas: Lectura[];
@@ -70,6 +71,7 @@ export const sembrarEjemplo = mutation({
         nombres: "María Rosa",
         apellidos: "Guamán Pineda",
         direccion: "Sector La Loma",
+        telefono: "0991000001",
         numeroMedidor: "MED-001",
         lecturaInicial: 100,
         lecturas: [
@@ -85,6 +87,7 @@ export const sembrarEjemplo = mutation({
         nombres: "José Manuel",
         apellidos: "Quizhpi Tenesaca",
         direccion: "Vía Principal",
+        telefono: "0991000002",
         numeroMedidor: "MED-002",
         lecturaInicial: 80,
         lecturas: [
@@ -99,6 +102,7 @@ export const sembrarEjemplo = mutation({
         nombres: "Rosa Elena",
         apellidos: "Lema Chuqui",
         direccion: "Sector El Mirador",
+        telefono: "0991000003",
         numeroMedidor: "MED-003",
         lecturaInicial: 200,
         lecturas: [
@@ -118,6 +122,7 @@ export const sembrarEjemplo = mutation({
         nombres: "Segundo Luis",
         apellidos: "Cabrera Ortiz",
         direccion: "Centro",
+        telefono: "0991000004",
         numeroMedidor: "MED-004",
         lecturaInicial: 40,
         lecturas: [
@@ -137,6 +142,7 @@ export const sembrarEjemplo = mutation({
         nombres: "Ana Lucía",
         apellidos: "Morocho Sisa",
         direccion: "Sector La Quebrada",
+        telefono: "0991000005",
         numeroMedidor: "MED-005",
         lecturaInicial: 300,
         lecturas: [
@@ -157,6 +163,7 @@ export const sembrarEjemplo = mutation({
         nombres: s.nombres,
         apellidos: s.apellidos,
         direccion: s.direccion,
+        telefono: s.telefono,
         numeroMedidor: s.numeroMedidor,
         lecturaInicial: s.lecturaInicial,
         activo: true,

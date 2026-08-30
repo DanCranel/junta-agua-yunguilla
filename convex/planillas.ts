@@ -208,6 +208,7 @@ export const resumenCierre = query({
         return {
           socioId: s._id,
           nombre: `${s.nombres} ${s.apellidos}`,
+          cedula: s.cedula,
           numeroMedidor: s.numeroMedidor,
           lecturaAnterior,
           yaRegistrada: existente !== null,

@@ -37,6 +37,7 @@ type ArgsPDF = {
     montoTotal: number;
     estado: Estado;
     fechaLimite: string;
+    fechaPago?: string;
   };
   tarifa: Tarifa;
   config: {
@@ -48,8 +49,14 @@ type ArgsPDF = {
   } | null;
 };
 
-/** Genera y descarga el PDF de una planilla. Se ejecuta en el navegador. */
+/**
+ * Genera y descarga el PDF de una planilla. Se ejecuta en el navegador.
+ * Si la planilla está pagada, el documento es un RECIBO DE PAGO (muestra la
+ * fecha de pago y omite los datos de transferencia); si no, es la planilla /
+ * comprobante de deuda con las instrucciones de pago.
+ */
 export function descargarPlanillaPDF({ socio, planilla, tarifa, config }: ArgsPDF): void {
+  const esRecibo = planilla.estado === "pagado";
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const margen = 20;
   let y = margen;
@@ -66,7 +73,8 @@ export function descargarPlanillaPDF({ socio, planilla, tarifa, config }: ArgsPD
   salto(8);
   doc.setFontSize(13);
   doc.setFont("helvetica", "normal");
-  doc.text(`Planilla de agua — ${periodoLegible(planilla.anio, planilla.mes)}`, margen, y);
+  const subtitulo = esRecibo ? "Recibo de pago" : "Planilla de agua";
+  doc.text(`${subtitulo} — ${periodoLegible(planilla.anio, planilla.mes)}`, margen, y);
   salto(4);
   doc.setDrawColor(200);
   doc.line(margen, y, margen + anchoUtil, y);
@@ -150,7 +158,7 @@ export function descargarPlanillaPDF({ socio, planilla, tarifa, config }: ArgsPD
   // Total.
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text("TOTAL A PAGAR", margen, y);
+  doc.text(esRecibo ? "TOTAL PAGADO" : "TOTAL A PAGAR", margen, y);
   doc.text(dinero(planilla.montoTotal), margen + anchoUtil, y, { align: "right" });
   salto(10);
 
@@ -158,11 +166,27 @@ export function descargarPlanillaPDF({ socio, planilla, tarifa, config }: ArgsPD
   doc.setFontSize(11);
   doc.text(`Estado: ${ESTADO_INFO[planilla.estado].etiqueta}`, margen, y);
   salto(6);
-  doc.text(`Pagar hasta: ${fechaLegible(planilla.fechaLimite)}`, margen, y);
-  salto(12);
+  if (esRecibo) {
+    if (planilla.fechaPago) {
+      doc.text(`Pagado el: ${fechaLegible(planilla.fechaPago)}`, margen, y);
+      salto(6);
+    }
+  } else {
+    doc.text(`Pagar hasta: ${fechaLegible(planilla.fechaLimite)}`, margen, y);
+    salto(6);
+  }
+  salto(6);
 
-  // Datos de pago.
-  if (config) {
+  // En el recibo no se muestran los datos de transferencia (ya está pagado):
+  // solo un cierre de agradecimiento.
+  if (esRecibo) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(11);
+    doc.text("Gracias por su pago.", margen, y);
+  }
+
+  // Datos de pago (solo cuando aún está pendiente).
+  if (!esRecibo && config) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.text("Pago por transferencia", margen, y);
@@ -180,6 +204,7 @@ export function descargarPlanillaPDF({ socio, planilla, tarifa, config }: ArgsPD
     }
   }
 
-  const nombreArchivo = `planilla-${socio.apellidos.split(/\s+/)[0].toLowerCase()}-${planilla.anio}-${String(planilla.mes).padStart(2, "0")}.pdf`;
+  const prefijo = esRecibo ? "recibo" : "planilla";
+  const nombreArchivo = `${prefijo}-${socio.apellidos.split(/\s+/)[0].toLowerCase()}-${planilla.anio}-${String(planilla.mes).padStart(2, "0")}.pdf`;
   doc.save(nombreArchivo);
 }

@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as config from "../config.js";
 import type * as lib from "../lib.js";
 import type * as planillas from "../planillas.js";
+import type * as reportes from "../reportes.js";
 import type * as seed from "../seed.js";
 import type * as socios from "../socios.js";
 import type * as tarifas from "../tarifas.js";
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   config: typeof config;
   lib: typeof lib;
   planillas: typeof planillas;
+  reportes: typeof reportes;
   seed: typeof seed;
   socios: typeof socios;
   tarifas: typeof tarifas;

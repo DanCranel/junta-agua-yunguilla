@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { dinero, periodoLegible } from "@/lib/formato";
+import { dinero, nombreJuntaMostrar, periodoLegible } from "@/lib/formato";
+import { mensajeRecordatorioPlanilla } from "@/lib/whatsapp";
 import { EstadoBadge } from "./comunes";
+import { BotonWhatsApp } from "./boton-whatsapp";
 import { FormSocio } from "./form-socio";
 import { RegistrarLectura } from "./registrar-lectura";
 import { HistorialSocio } from "./historial-socio";
@@ -17,10 +19,23 @@ export function SocioCard({ token, socio }: { token: string; socio: SocioListado
   const eliminar = useMutation(api.socios.eliminar);
   const confirmarPago = useMutation(api.planillas.confirmarPago);
   const rechazarPago = useMutation(api.planillas.rechazarPago);
+  const config = useQuery(api.config.obtener, {});
 
   const nombre = `${socio.apellidos} ${socio.nombres}`;
   const pendiente = socio.pendiente;
   const [pagando, setPagando] = useState(false);
+
+  // Recordatorio de WhatsApp para la planilla pendiente (si la hay).
+  const mensajeWhatsApp =
+    pendiente &&
+    mensajeRecordatorioPlanilla({
+      nombre: socio.nombres,
+      nombreJunta: nombreJuntaMostrar(config?.nombreJunta),
+      periodo: periodoLegible(pendiente.anio, pendiente.mes),
+      monto: dinero(pendiente.montoTotal),
+      enlaceConsulta:
+        typeof window !== "undefined" ? window.location.origin : "",
+    });
 
   // Cobro en la mesa: marca la planilla como pagada al instante.
   async function registrarPagoEfectivo() {
@@ -138,6 +153,13 @@ export function SocioCard({ token, socio }: { token: string; socio: SocioListado
 
         <div className="flex flex-wrap gap-2">
           <RegistrarLectura token={token} socioId={socio._id} nombre={nombre} />
+          {pendiente && mensajeWhatsApp && (
+            <BotonWhatsApp
+              telefono={socio.telefono}
+              mensaje={mensajeWhatsApp}
+              label="Recordar"
+            />
+          )}
           <HistorialSocio token={token} socioId={socio._id} nombre={nombre} />
           <FormSocio token={token} socio={socio} triggerLabel="Editar" variant="outline" />
           <Button

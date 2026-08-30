@@ -9,6 +9,7 @@ const camposSocio = {
   nombres: v.string(),
   apellidos: v.string(),
   direccion: v.optional(v.string()),
+  telefono: v.optional(v.string()),
   numeroMedidor: v.optional(v.string()),
   lecturaInicial: v.number(),
   activo: v.boolean(),

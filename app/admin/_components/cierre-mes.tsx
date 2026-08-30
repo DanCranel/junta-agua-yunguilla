@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -16,6 +16,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { dinero, nombreMes, periodoLegible } from "@/lib/formato";
+import {
+  descargarPlantillaLecturas,
+  leerLecturasDeExcel,
+} from "@/lib/excel-lecturas";
 import { AvisoError, mensajeError } from "./comunes";
 
 const ANIO_POR_DEFECTO = 2026;
@@ -42,6 +46,12 @@ export function CierreMes({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
+  // Resumen de la última carga desde Excel.
+  const [infoExcel, setInfoExcel] = useState<{
+    cargadas: number;
+    sinCoincidencia: string[];
+  } | null>(null);
+  const archivoRef = useRef<HTMLInputElement>(null);
 
   const anioN = Number(anio);
   const mesN = Number(mes);
@@ -78,7 +88,68 @@ export function CierreMes({ token }: { token: string }) {
     // Cambiar de período invalida las lecturas tecleadas y el resultado previo.
     setLecturas({});
     setResultado(null);
+    setInfoExcel(null);
     setError(null);
+  }
+
+  /** Descarga la plantilla .xlsx con los socios que aún no tienen planilla del mes. */
+  async function descargarPlantilla() {
+    if (!resumen) return;
+    setError(null);
+    const filas = resumen.filas
+      .filter((f) => !f.yaRegistrada)
+      .map((f) => ({
+        cedula: f.cedula,
+        nombre: f.nombre,
+        numeroMedidor: f.numeroMedidor,
+        lecturaAnterior: f.lecturaAnterior,
+      }));
+    try {
+      await descargarPlantillaLecturas(
+        filas,
+        periodoLegible(anioN, mesN),
+        `plantilla-lecturas-${anioN}-${String(mesN).padStart(2, "0")}.xlsx`,
+      );
+    } catch {
+      setError("No se pudo generar la plantilla de Excel.");
+    }
+  }
+
+  /** Lee el Excel subido y llena las lecturas emparejando por cédula. */
+  async function alSubirExcel(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite volver a subir el mismo archivo
+    if (!file || !resumen) return;
+    setError(null);
+    setResultado(null);
+    try {
+      const filas = await leerLecturasDeExcel(file);
+      // Mapa cédula -> socioId (solo dígitos, como se guarda en la base).
+      const porCedula = new Map<string, string>();
+      for (const f of resumen.filas) porCedula.set(f.cedula, f.socioId);
+
+      const nuevas: Record<string, string> = {};
+      const sinCoincidencia: string[] = [];
+      let cargadas = 0;
+      for (const { cedula, lecturaActual } of filas) {
+        // Recupera un cero a la izquierda perdido si el Excel guardó la cédula
+        // como número (cédula ecuatoriana = 10 dígitos).
+        let socioId = porCedula.get(cedula);
+        if (!socioId && cedula.length === 9) socioId = porCedula.get("0" + cedula);
+        if (!socioId) {
+          sinCoincidencia.push(cedula);
+          continue;
+        }
+        nuevas[socioId] = String(lecturaActual);
+        cargadas++;
+      }
+      setLecturas((prev) => ({ ...prev, ...nuevas }));
+      setInfoExcel({ cargadas, sinCoincidencia });
+    } catch (err) {
+      setError(
+        mensajeError(err, "No se pudo leer el archivo. Verifique que sea un Excel válido."),
+      );
+    }
   }
 
   async function guardar() {
@@ -156,6 +227,57 @@ export function CierreMes({ token }: { token: string }) {
           </div>
         </CardContent>
       </Card>
+
+      {resumen && resumen.filas.length > 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="text-lg">Cargar lecturas desde Excel</CardTitle>
+            <CardDescription className="text-base">
+              Descargue la plantilla, llene la columna <strong>Lectura actual</strong>{" "}
+              y vuelva a subirla. Se emparejan por cédula y las verá abajo antes
+              de guardar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={descargarPlantilla}>
+                📄 Descargar plantilla
+              </Button>
+              <Button variant="outline" onClick={() => archivoRef.current?.click()}>
+                📤 Subir Excel lleno
+              </Button>
+              <input
+                ref={archivoRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={alSubirExcel}
+              />
+            </div>
+
+            {infoExcel && (
+              <div className="rounded-md border bg-background p-3 text-base">
+                <p>
+                  Se cargaron <strong>{infoExcel.cargadas}</strong>{" "}
+                  {infoExcel.cargadas === 1 ? "lectura" : "lecturas"} desde el
+                  Excel. Revíselas abajo y presione{" "}
+                  <strong>Guardar</strong>.
+                </p>
+                {infoExcel.sinCoincidencia.length > 0 && (
+                  <p className="mt-1 text-sm text-red-700">
+                    {infoExcel.sinCoincidencia.length}{" "}
+                    {infoExcel.sinCoincidencia.length === 1
+                      ? "cédula no coincidió"
+                      : "cédulas no coincidieron"}{" "}
+                    con ningún socio: {infoExcel.sinCoincidencia.slice(0, 5).join(", ")}
+                    {infoExcel.sinCoincidencia.length > 5 ? "…" : ""}
+                  </p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {resultado && (
         <ResumenGuardado resultado={resultado} periodo={periodoLegible(anioN, mesN)} />

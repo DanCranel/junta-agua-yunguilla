@@ -249,7 +249,12 @@ function ResultadoSocio({
         </Card>
       )}
 
-      <HistorialAnios planillas={planillas} tarifa={tarifa} />
+      <HistorialAnios
+        socio={socio}
+        planillas={planillas}
+        tarifa={tarifa}
+        config={config ?? null}
+      />
     </div>
   );
 }
@@ -590,11 +595,15 @@ function BotonSubida({
 // ---------------------------------------------------------------------------
 
 function HistorialAnios({
+  socio,
   planillas,
   tarifa,
+  config,
 }: {
+  socio: Socio;
   planillas: Planilla[];
   tarifa: Tarifa | undefined;
+  config: Config;
 }) {
   if (planillas.length === 0) return null;
 
@@ -626,7 +635,13 @@ function HistorialAnios({
           </summary>
           <div className="border-t">
             {porAnio.get(anio)!.map((p) => (
-              <FilaHistorial key={p._id} planilla={p} tarifa={tarifa} />
+              <FilaHistorial
+                key={p._id}
+                socio={socio}
+                planilla={p}
+                tarifa={tarifa}
+                config={config}
+              />
             ))}
           </div>
         </details>
@@ -641,11 +656,15 @@ function HistorialAnios({
  * excedente, multas, total y fechas) para el socio.
  */
 function FilaHistorial({
+  socio,
   planilla,
   tarifa,
+  config,
 }: {
+  socio: Socio;
   planilla: Planilla;
   tarifa: Tarifa | undefined;
+  config: Config;
 }) {
   const consumo = Math.max(0, planilla.consumo);
   const m3Excedente = tarifa
@@ -718,6 +737,19 @@ function FilaHistorial({
             />
           )}
         </dl>
+
+        {planilla.estado === "pagado" && tarifa && (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 h-12 w-full text-base"
+            onClick={() =>
+              descargarPlanillaPDF({ socio, planilla, tarifa, config })
+            }
+          >
+            Descargar recibo
+          </Button>
+        )}
       </div>
     </details>
   );

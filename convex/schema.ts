@@ -34,6 +34,7 @@ export default defineSchema({
     nombres: v.string(),
     apellidos: v.string(),
     direccion: v.optional(v.string()),
+    telefono: v.optional(v.string()), // para enviar recordatorios por WhatsApp
     numeroMedidor: v.optional(v.string()),
     lecturaInicial: v.number(), // base de la primera planilla
     activo: v.boolean(), // dar de baja sin borrar historial

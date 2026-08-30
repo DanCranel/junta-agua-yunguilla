@@ -43,6 +43,7 @@ export function FormSocio({
     nombres: socio?.nombres ?? "",
     apellidos: socio?.apellidos ?? "",
     direccion: socio?.direccion ?? "",
+    telefono: socio?.telefono ?? "",
     numeroMedidor: socio?.numeroMedidor ?? "",
     lecturaInicial: String(socio?.lecturaInicial ?? ""),
     activo: socio?.activo ?? true,
@@ -62,6 +63,7 @@ export function FormSocio({
         nombres: f.nombres.trim(),
         apellidos: f.apellidos.trim(),
         direccion: f.direccion.trim() || undefined,
+        telefono: f.telefono.trim() || undefined,
         numeroMedidor: f.numeroMedidor.trim() || undefined,
         lecturaInicial: Number(f.lecturaInicial) || 0,
         activo: f.activo,
@@ -117,6 +119,13 @@ export function FormSocio({
             label="Dirección (opcional)"
             value={f.direccion}
             onChange={(v) => set("direccion", v)}
+          />
+          <Campo
+            label="Teléfono / WhatsApp (opcional)"
+            type="tel"
+            placeholder="Ej. 0991234567"
+            value={f.telefono}
+            onChange={(v) => set("telefono", v)}
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Campo
