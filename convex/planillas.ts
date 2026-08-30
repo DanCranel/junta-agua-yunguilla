@@ -399,6 +399,29 @@ export const confirmarPago = mutation({
   },
 });
 
+/**
+ * Confirma el pago de varias planillas a la vez (una misma fecha de pago).
+ * Útil cuando el socio paga varios meses juntos o manda el comprobante por otro
+ * medio (WhatsApp) y el tesorero registra el pago a mano. Salta las que ya están
+ * pagadas o no existen. Requiere sesión. Devuelve cuántas se confirmaron.
+ */
+export const confirmarPagos = mutation({
+  args: { token: v.string(), planillaIds: v.array(v.id("planillas")) },
+  handler: async (ctx, { token, planillaIds }) => {
+    await requerirSesion(ctx, token);
+    const fechaPago = fechaHoyISO(Date.now());
+    let confirmadas = 0;
+    for (const id of planillaIds) {
+      const p = await ctx.db.get(id);
+      if (p && p.estado !== "pagado") {
+        await ctx.db.patch(id, { estado: "pagado", fechaPago });
+        confirmadas++;
+      }
+    }
+    return { confirmadas };
+  },
+});
+
 /** Rechaza el pago: vuelve la planilla a por_pagar. Requiere sesión. */
 export const rechazarPago = mutation({
   args: { token: v.string(), planillaId: v.id("planillas") },
