@@ -25,6 +25,7 @@ export function BotonWhatsApp({
     <Button
       size={size}
       variant="outline"
+      nativeButton={false}
       className="gap-1.5 border-green-300 bg-green-50 text-green-800 hover:bg-green-100 hover:text-green-900"
       render={
         <a href={href} target="_blank" rel="noopener noreferrer">
