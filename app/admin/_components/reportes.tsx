@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { dinero, nombreJuntaMostrar, nombreMes } from "@/lib/formato";
@@ -20,9 +20,29 @@ export function Reportes({ token }: { token: string }) {
 
   const datos = useQuery(api.reportes.resumen, { token, anio, mes });
   const config = useQuery(api.config.obtener, {});
+  const tarifa = useQuery(api.tarifas.obtener, {});
   const nombreJunta = nombreJuntaMostrar(config?.nombreJunta);
   const enlaceConsulta =
     typeof window !== "undefined" ? window.location.origin : "";
+
+  const aplicarMora = useMutation(api.planillas.aplicarMora);
+  const [aplicandoMora, setAplicandoMora] = useState(false);
+  const [resultadoMora, setResultadoMora] = useState<string | null>(null);
+
+  async function correrMora() {
+    setAplicandoMora(true);
+    setResultadoMora(null);
+    try {
+      const r = await aplicarMora({ token });
+      setResultadoMora(
+        r.inactiva
+          ? "La mora está desactivada en la configuración."
+          : `Mora aplicada a ${r.aplicadas} ${r.aplicadas === 1 ? "planilla vencida" : "planillas vencidas"}.`,
+      );
+    } finally {
+      setAplicandoMora(false);
+    }
+  }
 
   // Años a elegir: los últimos 4 hasta el actual.
   const anios: number[] = [];
@@ -102,6 +122,31 @@ export function Reportes({ token }: { token: string }) {
               tono="rojo"
             />
           </div>
+
+          {/* Mora por atraso (solo si está activada en la tarifa) */}
+          {tarifa?.mora?.activa && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+              <span className="text-base text-amber-900">
+                Aplica la mora a las planillas vencidas (
+                {tarifa.mora.tipo === "porcentaje"
+                  ? `${tarifa.mora.valor}% del consumo`
+                  : dinero(tarifa.mora.valor)}
+                , tras {tarifa.mora.diasGracia} día(s) de gracia).
+              </span>
+              <Button
+                className="ml-auto bg-amber-600 text-white hover:bg-amber-700"
+                onClick={correrMora}
+                disabled={aplicandoMora}
+              >
+                {aplicandoMora ? "Aplicando…" : "Aplicar mora a las vencidas"}
+              </Button>
+              {resultadoMora && (
+                <p className="w-full text-base font-medium text-amber-900">
+                  {resultadoMora}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Morosos */}
           <section className="space-y-3">

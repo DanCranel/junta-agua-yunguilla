@@ -19,6 +19,7 @@ import {
   ESTADO_INFO,
   TIPO_MULTA,
   dinero,
+  esVencidaHoy,
   fechaLegible,
   nombreJuntaMostrar,
   nombreMes,
@@ -512,6 +513,11 @@ function MesPorPagar({
           {enRevision && (
             <div className="text-sm text-yellow-700">
               En revisión — ya envió comprobante
+            </div>
+          )}
+          {esVencidaHoy(planilla.estado, planilla.fechaLimite) && (
+            <div className="text-sm font-medium text-red-700">
+              🔴 Vencida — pague pronto
             </div>
           )}
         </div>

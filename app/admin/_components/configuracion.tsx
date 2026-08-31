@@ -126,6 +126,12 @@ function FormTarifa({
     consumoIncluido: number;
     precioExcedente?: number;
     tramos?: { hasta: number | null; precio: number }[];
+    mora?: {
+      activa: boolean;
+      tipo: "fijo" | "porcentaje";
+      valor: number;
+      diasGracia: number;
+    };
   };
 }) {
   const actualizar = useMutation(api.tarifas.actualizar);
@@ -141,6 +147,14 @@ function FormTarifa({
           precio: String(t.precio),
         }))
       : [{ hasta: "", precio: String(inicial.precioExcedente ?? 0) }],
+  );
+  const [moraActiva, setMoraActiva] = useState(inicial.mora?.activa ?? false);
+  const [moraTipo, setMoraTipo] = useState<"fijo" | "porcentaje">(
+    inicial.mora?.tipo ?? "fijo",
+  );
+  const [moraValor, setMoraValor] = useState(String(inicial.mora?.valor ?? ""));
+  const [moraDiasGracia, setMoraDiasGracia] = useState(
+    String(inicial.mora?.diasGracia ?? 0),
   );
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
@@ -180,6 +194,12 @@ function FormTarifa({
         tarifaBasica: Number(tarifaBasica) || 0,
         consumoIncluido: Number(consumoIncluido) || 0,
         tramos: tramosLimpios,
+        mora: {
+          activa: moraActiva,
+          tipo: moraTipo,
+          valor: Number(moraValor) || 0,
+          diasGracia: Number(moraDiasGracia) || 0,
+        },
       });
       setOk(true);
     } catch (err) {
@@ -254,6 +274,74 @@ function FormTarifa({
         <Button type="button" variant="outline" size="sm" onClick={agregarTramo}>
           + Agregar tramo
         </Button>
+      </div>
+
+      <div className="space-y-3 rounded-lg border border-input p-3">
+        <label className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={moraActiva}
+            onChange={(e) => {
+              setMoraActiva(e.target.checked);
+              setOk(false);
+            }}
+            className="size-5"
+          />
+          <span className="text-base font-medium">
+            Cobrar mora por pago atrasado
+          </span>
+        </label>
+
+        {moraActiva && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Tipo</Label>
+              <select
+                value={moraTipo}
+                onChange={(e) => {
+                  setMoraTipo(e.target.value as "fijo" | "porcentaje");
+                  setOk(false);
+                }}
+                className="h-11 w-full rounded-lg border border-input bg-transparent px-3 text-base"
+              >
+                <option value="fijo">Monto fijo ($)</option>
+                <option value="porcentaje">Porcentaje (%)</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">
+                {moraTipo === "porcentaje" ? "Valor (%)" : "Valor ($)"}
+              </Label>
+              <Input
+                type="number"
+                value={moraValor}
+                onChange={(e) => {
+                  setMoraValor(e.target.value);
+                  setOk(false);
+                }}
+                className="h-11 text-base"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Días de gracia</Label>
+              <Input
+                type="number"
+                value={moraDiasGracia}
+                onChange={(e) => {
+                  setMoraDiasGracia(e.target.value);
+                  setOk(false);
+                }}
+                className="h-11 text-base"
+              />
+            </div>
+          </div>
+        )}
+
+        <p className="text-sm text-muted-foreground">
+          {moraActiva
+            ? "La mora se aplica a las planillas vencidas con el botón “Aplicar mora” en Reportes."
+            : "Desactivada: no se cobra mora (para juntas que no la usan)."}
+        </p>
       </div>
 
       <AvisoError mensaje={error} />

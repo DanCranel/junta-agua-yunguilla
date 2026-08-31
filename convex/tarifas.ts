@@ -1,7 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { requerirSesion } from "./auth";
-import { tramoValidator } from "./schema";
+import { tramoValidator, moraValidator } from "./schema";
 import { TARIFA_POR_DEFECTO } from "./lib";
 
 /**
@@ -19,6 +19,7 @@ export const obtener = query({
       consumoIncluido: doc.consumoIncluido,
       precioExcedente: doc.precioExcedente,
       tramos: doc.tramos,
+      mora: doc.mora,
     };
   },
 });
@@ -30,6 +31,7 @@ export const actualizar = mutation({
     tarifaBasica: v.number(),
     consumoIncluido: v.number(),
     tramos: v.array(tramoValidator),
+    mora: v.optional(moraValidator),
   },
   handler: async (ctx, { token, ...datos }) => {
     await requerirSesion(ctx, token);

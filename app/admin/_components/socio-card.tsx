@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { dinero, nombreJuntaMostrar, periodoLegible } from "@/lib/formato";
+import { dinero, esVencidaHoy, nombreJuntaMostrar, periodoLegible } from "@/lib/formato";
 import { mensajeRecordatorioPlanilla } from "@/lib/whatsapp";
 import { EstadoBadge } from "./comunes";
 import { BotonWhatsApp } from "./boton-whatsapp";
@@ -75,6 +75,11 @@ export function SocioCard({ token, socio }: { token: string; socio: SocioListado
           <p className="text-base">
             {periodoLegible(pendiente.anio, pendiente.mes)}:{" "}
             <span className="font-semibold">{dinero(pendiente.montoTotal)}</span>
+            {esVencidaHoy(pendiente.estado, pendiente.fechaLimite) && (
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                🔴 Vencida
+              </span>
+            )}
           </p>
         ) : (
           <p className="text-base text-muted-foreground">Sin planillas pendientes.</p>

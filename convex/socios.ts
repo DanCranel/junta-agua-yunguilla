@@ -92,6 +92,7 @@ export const listar = query({
               mes: p.mes,
               montoTotal: p.montoTotal,
               estado: p.estado,
+              fechaLimite: p.fechaLimite,
               comprobanteUrl: p.comprobanteId
                 ? await ctx.storage.getUrl(p.comprobanteId)
                 : null,

@@ -56,11 +56,20 @@ export type Multa = { tipo: string; descripcion: string; monto: number };
  */
 export type Tramo = { hasta: number | null; precio: number };
 
+/** Regla de mora por atraso (ver schema `moraValidator`). */
+export type Mora = {
+  activa: boolean;
+  tipo: "fijo" | "porcentaje";
+  valor: number;
+  diasGracia: number;
+};
+
 export type Tarifa = {
   tarifaBasica: number;
   consumoIncluido: number;
   precioExcedente?: number; // legado: excedente de un solo precio (tramo único)
   tramos?: Tramo[]; // excedente por tramos (tiene prioridad sobre precioExcedente)
+  mora?: Mora; // regla de mora por atraso (opcional)
 };
 
 /** Tarifa de la muestra: básica $3 hasta 15 m³, excedente $0.30/m³. */
@@ -183,4 +192,31 @@ export function ultimoDiaDelMes(anio: number, mes: number): string {
   // El día 0 del mes siguiente es el último día de este mes.
   const fecha = new Date(Date.UTC(anio, mes, 0));
   return fecha.toISOString().slice(0, 10);
+}
+
+/** Suma (o resta) días a una fecha ISO YYYY-MM-DD y devuelve ISO. */
+export function sumarDiasISO(fechaISO: string, dias: number): string {
+  const d = new Date(fechaISO + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * ¿La planilla está vencida? Solo aplica a las que siguen "por pagar": la
+ * fecha de hoy pasó la fecha límite. Las fechas ISO se comparan como texto.
+ */
+export function esVencida(
+  estado: string,
+  fechaLimite: string,
+  hoyISO: string,
+): boolean {
+  return estado === "por_pagar" && hoyISO > fechaLimite;
+}
+
+/** Monto de mora según la regla: fijo en dólares, o porcentaje del consumo. */
+export function montoMora(montoConsumo: number, mora: Mora): number {
+  if (!mora.activa) return 0;
+  const bruto =
+    mora.tipo === "porcentaje" ? (montoConsumo * mora.valor) / 100 : mora.valor;
+  return aCentavos(Math.max(0, bruto));
 }

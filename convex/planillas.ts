@@ -9,8 +9,10 @@ import {
   calcularMontoTotal,
   coincideApellido,
   fechaHoyISO,
+  montoMora,
   normalizar,
   soloDigitos,
+  sumarDiasISO,
   ultimoDiaDelMes,
   COMPROBANTE_TIPOS_OK,
   COMPROBANTE_MAX_BYTES,
@@ -30,6 +32,7 @@ async function obtenerTarifa(ctx: QueryCtx): Promise<Tarifa> {
         consumoIncluido: doc.consumoIncluido,
         precioExcedente: doc.precioExcedente,
         tramos: doc.tramos,
+        mora: doc.mora,
       }
     : TARIFA_POR_DEFECTO;
 }
@@ -420,6 +423,44 @@ export const confirmarPagos = mutation({
       }
     }
     return { confirmadas };
+  },
+});
+
+/**
+ * Aplica la mora configurada a todas las planillas "por pagar" ya vencidas
+ * (pasada la fecha límite + días de gracia) que aún no tienen multa de mora.
+ * El monto lo calcula el sistema según la regla de la tarifa. Si la mora está
+ * desactivada, no hace nada. Requiere sesión.
+ */
+export const aplicarMora = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    await requerirSesion(ctx, token);
+    const tarifa = await obtenerTarifa(ctx);
+    const mora = tarifa.mora;
+    if (!mora || !mora.activa) return { aplicadas: 0, inactiva: true };
+
+    const hoy = fechaHoyISO(Date.now());
+    const planillas = await ctx.db.query("planillas").collect();
+    let aplicadas = 0;
+    for (const p of planillas) {
+      if (p.estado !== "por_pagar") continue;
+      const limiteConGracia = sumarDiasISO(p.fechaLimite, mora.diasGracia);
+      if (hoy <= limiteConGracia) continue; // aún no vencida (con gracia)
+      if (p.multas.some((m) => m.tipo === "mora")) continue; // ya tiene mora
+      const monto = montoMora(p.montoConsumo, mora);
+      if (monto <= 0) continue;
+      const multas = [
+        ...p.multas,
+        { tipo: "mora" as const, descripcion: "Mora por pago atrasado", monto },
+      ];
+      await ctx.db.patch(p._id, {
+        multas,
+        montoTotal: calcularMontoTotal(p.montoConsumo, multas),
+      });
+      aplicadas++;
+    }
+    return { aplicadas, inactiva: false };
   },
 });
 

@@ -37,6 +37,19 @@ export const tramoValidator = v.object({
   precio: v.number(),
 });
 
+/**
+ * Regla de mora por pago atrasado (configurable por junta). Puede estar
+ * desactivada. `valor` es dólares si `tipo` es "fijo", o porcentaje del consumo
+ * si es "porcentaje". `diasGracia` son los días después de la fecha límite antes
+ * de que aplique.
+ */
+export const moraValidator = v.object({
+  activa: v.boolean(),
+  tipo: v.union(v.literal("fijo"), v.literal("porcentaje")),
+  valor: v.number(),
+  diasGracia: v.number(),
+});
+
 export default defineSchema({
   // Identidad del socio (separada de sus planillas mensuales).
   socios: defineTable({
@@ -76,6 +89,7 @@ export default defineSchema({
     consumoIncluido: v.number(), // m³ que cubre la básica
     precioExcedente: v.optional(v.number()), // legado: excedente de un solo precio
     tramos: v.optional(v.array(tramoValidator)), // excedente por tramos (tiene prioridad)
+    mora: v.optional(moraValidator), // regla de mora por atraso (opcional)
   }),
 
   // Configuración única: nombre de la junta + cuenta bancaria + WhatsApp.

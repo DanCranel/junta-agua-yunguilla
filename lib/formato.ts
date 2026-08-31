@@ -67,3 +67,9 @@ export function fechaLegible(iso: string): string {
   if (!y || !m || !d) return iso;
   return `${d} de ${MESES[m - 1]} de ${y}`;
 }
+
+/** ¿Está vencida hoy? Por pagar y con la fecha límite ya pasada. */
+export function esVencidaHoy(estado: string, fechaLimite: string): boolean {
+  const hoy = new Date().toISOString().slice(0, 10);
+  return estado === "por_pagar" && hoy > fechaLimite;
+}
