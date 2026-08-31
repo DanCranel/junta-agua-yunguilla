@@ -228,16 +228,18 @@ function ResultadoSocio({
   const tarifa = useQuery(api.tarifas.obtener, {}) as Tarifa | undefined;
   const config = useQuery(api.config.obtener, {}) as Config | undefined;
 
-  // La planilla pendiente es la más reciente que no esté pagada.
-  // `planillas` ya viene ordenado DESC por (anio, mes).
-  const pendiente = planillas.find((p) => p.estado !== "pagado") ?? null;
+  // Todas las planillas sin pagar, de la más antigua a la más nueva (se paga
+  // primero lo más viejo). `planillas` viene DESC, así que la reordenamos.
+  const pendientes = planillas
+    .filter((p) => p.estado !== "pagado")
+    .sort((a, b) => a.anio - b.anio || a.mes - b.mes);
 
   return (
     <div className="mt-6 space-y-8">
-      {pendiente ? (
-        <PlanillaPendiente
+      {pendientes.length > 0 ? (
+        <PlanillasPorPagar
           socio={socio}
-          planilla={pendiente}
+          pendientes={pendientes}
           tarifa={tarifa}
           config={config ?? null}
         />
@@ -260,32 +262,27 @@ function ResultadoSocio({
 }
 
 // ---------------------------------------------------------------------------
-// Tarjeta de la planilla pendiente.
+// Planillas por pagar: el socio elige qué mes(es) paga (uno, varios o todos).
 // ---------------------------------------------------------------------------
 
-function PlanillaPendiente({
+function PlanillasPorPagar({
   socio,
-  planilla,
+  pendientes,
   tarifa,
   config,
 }: {
   socio: Socio;
-  planilla: Planilla;
+  pendientes: Planilla[];
   tarifa: Tarifa | undefined;
   config: Config;
 }) {
-  const consumo = Math.max(0, planilla.consumo);
-  const m3Excedente = tarifa
-    ? Math.max(0, planilla.consumo - tarifa.consumoIncluido)
-    : 0;
-  const montoExcedente = tarifa
-    ? Math.round((planilla.montoConsumo - tarifa.tarifaBasica) * 100) / 100
-    : 0;
+  // Selección explícita por planilla; sin valor = marcada solo si está "por
+  // pagar" (las que ya están en revisión no se re-seleccionan por defecto).
+  const [sel, setSel] = useState<Record<string, boolean>>({});
+  const marcada = (p: Planilla) => sel[p._id] ?? p.estado === "por_pagar";
 
-  function descargar() {
-    if (!tarifa) return;
-    descargarPlanillaPDF({ socio, planilla, tarifa, config });
-  }
+  const seleccionadas = pendientes.filter(marcada);
+  const total = seleccionadas.reduce((acc, p) => acc + p.montoTotal, 0);
 
   return (
     <Card>
@@ -294,68 +291,41 @@ function PlanillaPendiente({
           {socio.nombres} {socio.apellidos}
         </CardTitle>
         <CardDescription className="text-base">
-          Planilla de {periodoLegible(planilla.anio, planilla.mes)}
+          {pendientes.length === 1
+            ? "Tiene 1 mes por pagar"
+            : `Tiene ${pendientes.length} meses por pagar`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 text-lg">
-        <EstadoBadge estado={planilla.estado} />
+        <p className="text-base text-muted-foreground">
+          Marque el mes o los meses que va a pagar.
+        </p>
 
-        {/* Monto grande y destacado */}
-        <div className="rounded-lg bg-muted p-4 text-center">
-          <div className="text-base text-muted-foreground">Debe pagar</div>
-          <div className="text-4xl font-bold">{dinero(planilla.montoTotal)}</div>
-        </div>
-
-        {/* Desglose */}
-        <dl className="space-y-2">
-          {tarifa && (
-            <Fila
-              etiqueta="Tarifa básica"
-              valor={dinero(tarifa.tarifaBasica)}
-            />
-          )}
-          {tarifa && m3Excedente > 0 && (
-            <Fila
-              etiqueta={`Excedente ${m3Excedente} m³ × ${dinero(
-                tarifa.precioExcedente
-              )}`}
-              valor={dinero(montoExcedente)}
-            />
-          )}
-          {planilla.multas.map((m, i) => (
-            <Fila
-              key={i}
-              etiqueta={`${TIPO_MULTA[m.tipo as TipoMulta] ?? m.tipo}${
-                m.descripcion ? ` — ${m.descripcion}` : ""
-              }`}
-              valor={dinero(m.monto)}
+        {/* Un renglón seleccionable por mes pendiente */}
+        <div className="space-y-3">
+          {pendientes.map((p) => (
+            <MesPorPagar
+              key={p._id}
+              socio={socio}
+              planilla={p}
+              tarifa={tarifa}
+              config={config}
+              marcada={marcada(p)}
+              onToggle={(v) => setSel((prev) => ({ ...prev, [p._id]: v }))}
             />
           ))}
-          <Fila etiqueta="Total" valor={dinero(planilla.montoTotal)} fuerte />
-        </dl>
+        </div>
 
-        {/* Datos de lectura */}
-        <dl className="space-y-2">
-          <Fila etiqueta="Consumo del mes" valor={`${consumo} m³`} />
-          <Fila
-            etiqueta="Lectura anterior → actual"
-            valor={`${planilla.lecturaAnterior} → ${planilla.lecturaActual}`}
-          />
-          <Fila
-            etiqueta="Pagar hasta"
-            valor={fechaLegible(planilla.fechaLimite)}
-          />
-        </dl>
-
-        <Button
-          type="button"
-          variant="outline"
-          className="h-14 w-full text-lg"
-          onClick={descargar}
-          disabled={!tarifa}
-        >
-          Descargar PDF
-        </Button>
+        {/* Total de lo seleccionado */}
+        <div className="rounded-lg bg-muted p-4 text-center">
+          <div className="text-base text-muted-foreground">
+            Total a pagar ·{" "}
+            {seleccionadas.length === 1
+              ? "1 mes"
+              : `${seleccionadas.length} meses`}
+          </div>
+          <div className="text-4xl font-bold">{dinero(total)}</div>
+        </div>
 
         {/* Datos de pago */}
         {config && (
@@ -387,20 +357,114 @@ function PlanillaPendiente({
           </div>
         )}
 
-        {/* Subir comprobante */}
-        {planilla.estado === "en_revision" ? (
-          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-center text-base text-yellow-800">
-            Su comprobante está en revisión. La tesorería lo confirmará pronto.
-          </div>
-        ) : (
-          <SubirComprobante
-            planillaId={planilla._id}
-            cedula={socio.cedula}
-            apellido={socio.apellidos}
-          />
-        )}
+        {/* Subir un comprobante para los meses seleccionados */}
+        <SubirComprobante
+          planillaIds={seleccionadas.map((p) => p._id)}
+          cedula={socio.cedula}
+          apellido={socio.apellidos}
+        />
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Un mes por pagar: casilla para seleccionarlo, monto (con multas incluidas),
+ * estado, y un detalle desplegable con el desglose y la descarga del PDF.
+ */
+function MesPorPagar({
+  socio,
+  planilla,
+  tarifa,
+  config,
+  marcada,
+  onToggle,
+}: {
+  socio: Socio;
+  planilla: Planilla;
+  tarifa: Tarifa | undefined;
+  config: Config;
+  marcada: boolean;
+  onToggle: (v: boolean) => void;
+}) {
+  const consumo = Math.max(0, planilla.consumo);
+  const m3Excedente = tarifa
+    ? Math.max(0, planilla.consumo - tarifa.consumoIncluido)
+    : 0;
+  const montoExcedente = tarifa
+    ? Math.round((planilla.montoConsumo - tarifa.tarifaBasica) * 100) / 100
+    : 0;
+  const enRevision = planilla.estado === "en_revision";
+
+  return (
+    <div className="rounded-lg border">
+      <label className="flex cursor-pointer items-center gap-3 p-4">
+        <input
+          type="checkbox"
+          checked={marcada}
+          onChange={(e) => onToggle(e.target.checked)}
+          className="size-6"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="text-lg font-medium">
+            {periodoLegible(planilla.anio, planilla.mes)}
+          </div>
+          {enRevision && (
+            <div className="text-sm text-yellow-700">
+              En revisión — ya envió comprobante
+            </div>
+          )}
+        </div>
+        <div className="text-xl font-bold">{dinero(planilla.montoTotal)}</div>
+      </label>
+
+      <details className="border-t">
+        <summary className="cursor-pointer list-none px-4 py-2 text-base text-muted-foreground">
+          Ver detalle
+        </summary>
+        <div className="px-4 pb-4">
+          <dl className="space-y-2">
+            {tarifa && (
+              <Fila etiqueta="Tarifa básica" valor={dinero(tarifa.tarifaBasica)} />
+            )}
+            {tarifa && m3Excedente > 0 && (
+              <Fila
+                etiqueta={`Excedente ${m3Excedente} m³ × ${dinero(
+                  tarifa.precioExcedente,
+                )}`}
+                valor={dinero(montoExcedente)}
+              />
+            )}
+            {planilla.multas.map((m, i) => (
+              <Fila
+                key={i}
+                etiqueta={`${TIPO_MULTA[m.tipo as TipoMulta] ?? m.tipo}${
+                  m.descripcion ? ` — ${m.descripcion}` : ""
+                }`}
+                valor={dinero(m.monto)}
+              />
+            ))}
+            <Fila etiqueta="Total" valor={dinero(planilla.montoTotal)} fuerte />
+            <Fila etiqueta="Consumo del mes" valor={`${consumo} m³`} />
+            <Fila
+              etiqueta="Pagar hasta"
+              valor={fechaLegible(planilla.fechaLimite)}
+            />
+          </dl>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 h-12 w-full text-base"
+            onClick={() =>
+              tarifa && descargarPlanillaPDF({ socio, planilla, tarifa, config })
+            }
+            disabled={!tarifa}
+          >
+            Descargar PDF de este mes
+          </Button>
+        </div>
+      </details>
+    </div>
   );
 }
 
@@ -411,11 +475,11 @@ function PlanillaPendiente({
 type EstadoSubida = "idle" | "subiendo" | "exito" | "error";
 
 function SubirComprobante({
-  planillaId,
+  planillaIds,
   cedula,
   apellido,
 }: {
-  planillaId: string;
+  planillaIds: string[];
   cedula: string;
   apellido: string;
 }) {
@@ -436,30 +500,34 @@ function SubirComprobante({
   }
 
   async function enviar() {
-    if (!archivo) return;
+    if (!archivo || planillaIds.length === 0) return;
     setEstado("subiendo");
     setMensajeError(null);
     try {
-      const url = await generarUrlSubida({ cedula, apellido });
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": archivo.type },
-        body: archivo,
-      });
-      if (!res.ok) throw new Error("Fallo la subida del archivo");
-      const { storageId } = await res.json();
-      const resultado = await adjuntarComprobante({
-        planillaId: planillaId as Id<"planillas">,
-        storageId,
-        cedula,
-        apellido,
-      });
-      // El servidor puede rechazar el archivo (tipo/tamaño) o la identidad y
-      // devuelve el motivo; en ese caso lo mostramos sin tratarlo como caída.
-      if (!resultado.ok) {
-        setMensajeError(resultado.mensaje);
-        setEstado("error");
-        return;
+      // Se sube una copia del comprobante para cada mes seleccionado: cada
+      // planilla guarda su propio archivo (no se comparte entre meses).
+      for (const id of planillaIds) {
+        const url = await generarUrlSubida({ cedula, apellido });
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": archivo.type },
+          body: archivo,
+        });
+        if (!res.ok) throw new Error("Fallo la subida del archivo");
+        const { storageId } = await res.json();
+        const resultado = await adjuntarComprobante({
+          planillaId: id as Id<"planillas">,
+          storageId,
+          cedula,
+          apellido,
+        });
+        // El servidor puede rechazar el archivo (tipo/tamaño) o la identidad y
+        // devuelve el motivo; en ese caso lo mostramos sin tratarlo como caída.
+        if (!resultado.ok) {
+          setMensajeError(resultado.mensaje);
+          setEstado("error");
+          return;
+        }
       }
       setEstado("exito");
       setArchivo(null);
@@ -478,7 +546,7 @@ function SubirComprobante({
   if (estado === "exito") {
     return (
       <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center text-base text-green-800">
-        Comprobante enviado. Queda en revisión. ✅
+        Comprobante enviado. Los meses quedan en revisión. ✅
       </div>
     );
   }
@@ -547,9 +615,15 @@ function SubirComprobante({
         type="button"
         className="h-14 w-full text-lg"
         onClick={enviar}
-        disabled={!archivo || deshabilitado}
+        disabled={!archivo || deshabilitado || planillaIds.length === 0}
       >
-        {estado === "subiendo" ? "Subiendo…" : "Enviar comprobante"}
+        {estado === "subiendo"
+          ? "Subiendo…"
+          : planillaIds.length === 0
+            ? "Seleccione un mes arriba"
+            : planillaIds.length === 1
+              ? "Enviar comprobante"
+              : `Enviar comprobante (${planillaIds.length} meses)`}
       </Button>
       {estado === "error" && (
         <p className="text-center text-base text-red-700">
