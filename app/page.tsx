@@ -27,6 +27,7 @@ import {
   type TipoMulta,
 } from "@/lib/formato";
 import { descargarPlanillaPDF } from "@/lib/pdf";
+import { desgloseConsumo } from "@/convex/lib";
 
 // ---------------------------------------------------------------------------
 // Tipos (espejo de lo que devuelve la API de Convex).
@@ -63,7 +64,8 @@ type Socio = {
 type Tarifa = {
   tarifaBasica: number;
   consumoIncluido: number;
-  precioExcedente: number;
+  precioExcedente?: number;
+  tramos?: { hasta: number | null; precio: number }[];
 };
 
 type Config = {
@@ -388,12 +390,7 @@ function MesPorPagar({
   onToggle: (v: boolean) => void;
 }) {
   const consumo = Math.max(0, planilla.consumo);
-  const m3Excedente = tarifa
-    ? Math.max(0, planilla.consumo - tarifa.consumoIncluido)
-    : 0;
-  const montoExcedente = tarifa
-    ? Math.round((planilla.montoConsumo - tarifa.tarifaBasica) * 100) / 100
-    : 0;
+  const desglose = tarifa ? desgloseConsumo(planilla.consumo, tarifa) : null;
   const enRevision = planilla.estado === "en_revision";
 
   return (
@@ -424,17 +421,16 @@ function MesPorPagar({
         </summary>
         <div className="px-4 pb-4">
           <dl className="space-y-2">
-            {tarifa && (
-              <Fila etiqueta="Tarifa básica" valor={dinero(tarifa.tarifaBasica)} />
+            {desglose && (
+              <Fila etiqueta="Tarifa básica" valor={dinero(desglose.basica)} />
             )}
-            {tarifa && m3Excedente > 0 && (
+            {desglose?.excedentes.map((ex, i) => (
               <Fila
-                etiqueta={`Excedente ${m3Excedente} m³ × ${dinero(
-                  tarifa.precioExcedente,
-                )}`}
-                valor={dinero(montoExcedente)}
+                key={`ex${i}`}
+                etiqueta={`Excedente ${ex.m3} m³ × ${dinero(ex.precio)}/m³`}
+                valor={dinero(ex.monto)}
               />
-            )}
+            ))}
             {planilla.multas.map((m, i) => (
               <Fila
                 key={i}
@@ -741,12 +737,7 @@ function FilaHistorial({
   config: Config;
 }) {
   const consumo = Math.max(0, planilla.consumo);
-  const m3Excedente = tarifa
-    ? Math.max(0, planilla.consumo - tarifa.consumoIncluido)
-    : 0;
-  const montoExcedente = tarifa
-    ? Math.round((planilla.montoConsumo - tarifa.tarifaBasica) * 100) / 100
-    : 0;
+  const desglose = tarifa ? desgloseConsumo(planilla.consumo, tarifa) : null;
 
   return (
     <details className="group border-b last:border-b-0">
@@ -779,17 +770,16 @@ function FilaHistorial({
             etiqueta="Lectura anterior → actual"
             valor={`${planilla.lecturaAnterior} → ${planilla.lecturaActual}`}
           />
-          {tarifa && (
-            <Fila etiqueta="Tarifa básica" valor={dinero(tarifa.tarifaBasica)} />
+          {desglose && (
+            <Fila etiqueta="Tarifa básica" valor={dinero(desglose.basica)} />
           )}
-          {tarifa && m3Excedente > 0 && (
+          {desglose?.excedentes.map((ex, i) => (
             <Fila
-              etiqueta={`Excedente ${m3Excedente} m³ × ${dinero(
-                tarifa.precioExcedente,
-              )}`}
-              valor={dinero(montoExcedente)}
+              key={`ex${i}`}
+              etiqueta={`Excedente ${ex.m3} m³ × ${dinero(ex.precio)}/m³`}
+              valor={dinero(ex.monto)}
             />
-          )}
+          ))}
           {planilla.multas.map((m, i) => (
             <Fila
               key={i}

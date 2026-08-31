@@ -29,6 +29,7 @@ async function obtenerTarifa(ctx: QueryCtx): Promise<Tarifa> {
         tarifaBasica: doc.tarifaBasica,
         consumoIncluido: doc.consumoIncluido,
         precioExcedente: doc.precioExcedente,
+        tramos: doc.tramos,
       }
     : TARIFA_POR_DEFECTO;
 }

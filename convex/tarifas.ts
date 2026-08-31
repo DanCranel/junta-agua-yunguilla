@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { requerirSesion } from "./auth";
+import { tramoValidator } from "./schema";
 import { TARIFA_POR_DEFECTO } from "./lib";
 
 /**
@@ -17,17 +18,18 @@ export const obtener = query({
       tarifaBasica: doc.tarifaBasica,
       consumoIncluido: doc.consumoIncluido,
       precioExcedente: doc.precioExcedente,
+      tramos: doc.tramos,
     };
   },
 });
 
-/** Actualiza (o crea) la tarifa única. Requiere sesión del tesorero. */
+/** Actualiza (o crea) la tarifa única, con el excedente por tramos. Requiere sesión. */
 export const actualizar = mutation({
   args: {
     token: v.string(),
     tarifaBasica: v.number(),
     consumoIncluido: v.number(),
-    precioExcedente: v.number(),
+    tramos: v.array(tramoValidator),
   },
   handler: async (ctx, { token, ...datos }) => {
     await requerirSesion(ctx, token);

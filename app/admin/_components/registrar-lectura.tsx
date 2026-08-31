@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { dinero, nombreMes } from "@/lib/formato";
+import { desgloseConsumo } from "@/convex/lib";
 import { AvisoError, mensajeError } from "./comunes";
 
 const ANIO_POR_DEFECTO = 2026;
@@ -92,12 +93,9 @@ export function RegistrarLectura({
   }
 
   // Desglose para mostrar (a partir de la vista previa del backend).
-  const excedenteMonto = preview
-    ? Math.max(0, preview.montoConsumo - preview.tarifa.tarifaBasica)
-    : 0;
-  const excedenteM3 = preview
-    ? Math.max(0, preview.consumo - preview.tarifa.consumoIncluido)
-    : 0;
+  const desglose = preview
+    ? desgloseConsumo(preview.consumo, preview.tarifa)
+    : null;
 
   return (
     <Dialog
@@ -177,12 +175,13 @@ export function RegistrarLectura({
                   etiqueta={`Tarifa básica (incluye ${preview.tarifa.consumoIncluido} m³)`}
                   valor={dinero(preview.tarifa.tarifaBasica)}
                 />
-                <Fila
-                  etiqueta={`Excedente: ${excedenteM3} m³ × ${dinero(
-                    preview.tarifa.precioExcedente,
-                  )}`}
-                  valor={dinero(excedenteMonto)}
-                />
+                {desglose?.excedentes.map((ex, i) => (
+                  <Fila
+                    key={`ex${i}`}
+                    etiqueta={`Excedente: ${ex.m3} m³ × ${dinero(ex.precio)}/m³`}
+                    valor={dinero(ex.monto)}
+                  />
+                ))}
                 <div className="mt-2 flex justify-between border-t pt-2 text-lg font-bold">
                   <span>Total del consumo</span>
                   <span>{dinero(preview.montoConsumo)}</span>

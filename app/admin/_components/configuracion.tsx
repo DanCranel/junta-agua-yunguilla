@@ -11,6 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { NOMBRE_JUNTA_POR_DEFECTO } from "@/lib/formato";
 import { AvisoError, Campo, mensajeError } from "./comunes";
 
@@ -112,20 +114,52 @@ function FormNombre({ token, inicial }: { token: string; inicial: string }) {
   );
 }
 
+type TramoForm = { hasta: string; precio: string };
+
 function FormTarifa({
   token,
   inicial,
 }: {
   token: string;
-  inicial: { tarifaBasica: number; consumoIncluido: number; precioExcedente: number };
+  inicial: {
+    tarifaBasica: number;
+    consumoIncluido: number;
+    precioExcedente?: number;
+    tramos?: { hasta: number | null; precio: number }[];
+  };
 }) {
   const actualizar = useMutation(api.tarifas.actualizar);
   const [tarifaBasica, setTarifaBasica] = useState(String(inicial.tarifaBasica));
-  const [consumoIncluido, setConsumoIncluido] = useState(String(inicial.consumoIncluido));
-  const [precioExcedente, setPrecioExcedente] = useState(String(inicial.precioExcedente));
+  const [consumoIncluido, setConsumoIncluido] = useState(
+    String(inicial.consumoIncluido),
+  );
+  // Tramos iniciales: los guardados, o uno abierto con el precio único heredado.
+  const [tramos, setTramos] = useState<TramoForm[]>(
+    inicial.tramos && inicial.tramos.length > 0
+      ? inicial.tramos.map((t) => ({
+          hasta: t.hasta === null ? "" : String(t.hasta),
+          precio: String(t.precio),
+        }))
+      : [{ hasta: "", precio: String(inicial.precioExcedente ?? 0) }],
+  );
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const [guardando, setGuardando] = useState(false);
+
+  function setTramo(i: number, campo: keyof TramoForm, valor: string) {
+    setTramos((prev) =>
+      prev.map((t, j) => (j === i ? { ...t, [campo]: valor } : t)),
+    );
+    setOk(false);
+  }
+  function agregarTramo() {
+    setTramos((prev) => [...prev, { hasta: "", precio: "" }]);
+    setOk(false);
+  }
+  function quitarTramo(i: number) {
+    setTramos((prev) => prev.filter((_, j) => j !== i));
+    setOk(false);
+  }
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -133,11 +167,19 @@ function FormTarifa({
     setOk(false);
     setGuardando(true);
     try {
+      // "Hasta" vacío = tramo abierto (de ahí en adelante). Se ordena por tope
+      // ascendente para que el cálculo escalonado sea correcto.
+      const tramosLimpios = tramos
+        .map((t) => ({
+          hasta: t.hasta.trim() === "" ? null : Number(t.hasta),
+          precio: Number(t.precio) || 0,
+        }))
+        .sort((a, b) => (a.hasta ?? Infinity) - (b.hasta ?? Infinity));
       await actualizar({
         token,
         tarifaBasica: Number(tarifaBasica) || 0,
         consumoIncluido: Number(consumoIncluido) || 0,
-        precioExcedente: Number(precioExcedente) || 0,
+        tramos: tramosLimpios,
       });
       setOk(true);
     } catch (err) {
@@ -149,26 +191,71 @@ function FormTarifa({
 
   return (
     <form onSubmit={guardar} className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Campo
           label="Tarifa básica ($)"
           type="number"
           value={tarifaBasica}
-          onChange={setTarifaBasica}
+          onChange={(v) => {
+            setTarifaBasica(v);
+            setOk(false);
+          }}
         />
         <Campo
           label="Consumo incluido (m³)"
           type="number"
           value={consumoIncluido}
-          onChange={setConsumoIncluido}
-        />
-        <Campo
-          label="Precio excedente ($/m³)"
-          type="number"
-          value={precioExcedente}
-          onChange={setPrecioExcedente}
+          onChange={(v) => {
+            setConsumoIncluido(v);
+            setOk(false);
+          }}
         />
       </div>
+
+      <div className="space-y-2">
+        <Label className="text-base">Tramos de excedente (por m³ sobre el consumo incluido)</Label>
+        <p className="text-sm text-muted-foreground">
+          Cada tramo cobra su precio por m³ hasta el tope indicado. Deje “Hasta”
+          vacío en el último tramo (cobra de ahí en adelante).
+        </p>
+        {tramos.map((t, i) => (
+          <div key={i} className="flex items-end gap-2">
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-sm">Hasta (m³)</Label>
+              <Input
+                type="number"
+                value={t.hasta}
+                onChange={(e) => setTramo(i, "hasta", e.target.value)}
+                placeholder="en adelante"
+                className="h-11 text-base"
+              />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-sm">Precio ($/m³)</Label>
+              <Input
+                type="number"
+                value={t.precio}
+                onChange={(e) => setTramo(i, "precio", e.target.value)}
+                className="h-11 text-base"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-11 text-red-700 hover:text-red-800"
+              onClick={() => quitarTramo(i)}
+              disabled={tramos.length === 1}
+            >
+              Quitar
+            </Button>
+          </div>
+        ))}
+        <Button type="button" variant="outline" size="sm" onClick={agregarTramo}>
+          + Agregar tramo
+        </Button>
+      </div>
+
       <AvisoError mensaje={error} />
       {ok && <p className="text-base font-medium text-green-700">Tarifa guardada.</p>}
       <Button type="submit" size="lg" disabled={guardando}>

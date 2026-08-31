@@ -48,10 +48,19 @@ export const COMPROBANTE_MAX_BYTES = 5 * 1024 * 1024;
 // --- Cálculo de la tarifa (núcleo de la v2, ver PRD §4.1) ---
 
 export type Multa = { tipo: string; descripcion: string; monto: number };
+
+/**
+ * Un tramo de excedente: cobra `precio` por m³ desde el fin del tramo anterior
+ * hasta `hasta` m³. El último tramo lleva `hasta: null` (de ahí en adelante).
+ * Los tramos van en orden ascendente de `hasta`.
+ */
+export type Tramo = { hasta: number | null; precio: number };
+
 export type Tarifa = {
   tarifaBasica: number;
   consumoIncluido: number;
-  precioExcedente: number;
+  precioExcedente?: number; // legado: excedente de un solo precio (tramo único)
+  tramos?: Tramo[]; // excedente por tramos (tiene prioridad sobre precioExcedente)
 };
 
 /** Tarifa de la muestra: básica $3 hasta 15 m³, excedente $0.30/m³. */
@@ -59,6 +68,7 @@ export const TARIFA_POR_DEFECTO: Tarifa = {
   tarifaBasica: 3,
   consumoIncluido: 15,
   precioExcedente: 0.3,
+  tramos: [{ hasta: null, precio: 0.3 }],
 };
 
 /** Redondea a centavos para evitar arrastre de errores de punto flotante. */
@@ -79,17 +89,78 @@ export function calcularConsumo(
 }
 
 /**
- * Monto del consumo según la tarifa (básica + excedente).
+ * Tramos de excedente de la tarifa. Compatibilidad: si la tarifa aún usa el
+ * precio único heredado, se representa como un solo tramo abierto.
+ */
+export function tramosDe(tarifa: Tarifa): Tramo[] {
+  if (tarifa.tramos && tarifa.tramos.length > 0) return tarifa.tramos;
+  return [{ hasta: null, precio: tarifa.precioExcedente ?? 0 }];
+}
+
+/**
+ * Monto del consumo según la tarifa (básica + excedente por tramos).
  *   consumo <= incluido  -> básica
- *   consumo >  incluido  -> básica + (consumo − incluido) × precioExcedente
+ *   consumo >  incluido  -> básica + la suma de cada tramo de excedente usado
+ * Cada tramo cobra su precio por los m³ desde el fin del tramo anterior hasta su
+ * tope `hasta` (el último, `hasta: null`, cobra de ahí en adelante).
  */
 export function calcularMontoConsumo(consumo: number, tarifa: Tarifa): number {
   const c = Math.max(0, consumo);
   if (c <= tarifa.consumoIncluido) {
     return aCentavos(tarifa.tarifaBasica);
   }
-  const excedente = c - tarifa.consumoIncluido;
-  return aCentavos(tarifa.tarifaBasica + excedente * tarifa.precioExcedente);
+  let monto = tarifa.tarifaBasica;
+  let limiteAnterior = tarifa.consumoIncluido;
+  for (const tramo of tramosDe(tarifa)) {
+    const tope = tramo.hasta ?? Infinity;
+    const m3 = Math.min(c, tope) - limiteAnterior;
+    if (m3 > 0) monto += m3 * tramo.precio;
+    limiteAnterior = tope;
+    if (c <= tope) break;
+  }
+  return aCentavos(monto);
+}
+
+/** Una línea del desglose de excedente (para mostrar en la planilla y el PDF). */
+export type LineaExcedente = {
+  m3: number;
+  precio: number;
+  monto: number;
+  desde: number;
+  hasta: number | null;
+};
+
+/**
+ * Desglose del monto del consumo: la básica y una línea por cada tramo de
+ * excedente efectivamente usado. Comparte la lógica con calcularMontoConsumo,
+ * para que lo que se muestra coincida siempre con lo que se cobra.
+ */
+export function desgloseConsumo(
+  consumo: number,
+  tarifa: Tarifa,
+): { basica: number; excedentes: LineaExcedente[] } {
+  const c = Math.max(0, consumo);
+  const basica = aCentavos(tarifa.tarifaBasica);
+  const excedentes: LineaExcedente[] = [];
+  if (c <= tarifa.consumoIncluido) return { basica, excedentes };
+
+  let limiteAnterior = tarifa.consumoIncluido;
+  for (const tramo of tramosDe(tarifa)) {
+    const tope = tramo.hasta ?? Infinity;
+    const m3 = Math.min(c, tope) - limiteAnterior;
+    if (m3 > 0) {
+      excedentes.push({
+        m3,
+        precio: tramo.precio,
+        monto: aCentavos(m3 * tramo.precio),
+        desde: limiteAnterior,
+        hasta: tramo.hasta,
+      });
+    }
+    limiteAnterior = tope;
+    if (c <= tope) break;
+  }
+  return { basica, excedentes };
 }
 
 /** Suma de todas las multas de una planilla. */

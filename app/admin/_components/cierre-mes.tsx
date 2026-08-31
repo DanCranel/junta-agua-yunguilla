@@ -352,7 +352,12 @@ function FilaSocio({
   numeroMedidor?: string;
   lecturaAnterior: number;
   yaRegistrada: boolean;
-  tarifa: { tarifaBasica: number; consumoIncluido: number; precioExcedente: number };
+  tarifa: {
+    tarifaBasica: number;
+    consumoIncluido: number;
+    precioExcedente?: number;
+    tramos?: { hasta: number | null; precio: number }[];
+  };
   valor: string;
   onChange: (v: string) => void;
 }) {

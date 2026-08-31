@@ -27,6 +27,16 @@ export const multaValidator = v.object({
   monto: v.number(),
 });
 
+/**
+ * Un tramo de excedente: cobra `precio` por cada m³ desde el fin del tramo
+ * anterior hasta `hasta` m³. El último tramo lleva `hasta: null` (de ahí en
+ * adelante). Permite tarifas escalonadas (ej. 15–30 m³ a $0.25, más de 30 a $1).
+ */
+export const tramoValidator = v.object({
+  hasta: v.union(v.number(), v.null()),
+  precio: v.number(),
+});
+
 export default defineSchema({
   // Identidad del socio (separada de sus planillas mensuales).
   socios: defineTable({
@@ -63,7 +73,8 @@ export default defineSchema({
   tarifa: defineTable({
     tarifaBasica: v.number(), // valor mínimo mensual
     consumoIncluido: v.number(), // m³ que cubre la básica
-    precioExcedente: v.number(), // valor por m³ adicional
+    precioExcedente: v.optional(v.number()), // legado: excedente de un solo precio
+    tramos: v.optional(v.array(tramoValidator)), // excedente por tramos (tiene prioridad)
   }),
 
   // Configuración única: nombre de la junta + cuenta bancaria.

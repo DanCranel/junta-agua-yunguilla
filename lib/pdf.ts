@@ -9,13 +9,15 @@ import {
   TIPO_MULTA,
 } from "./formato";
 import type { Estado, TipoMulta } from "./formato";
+import { desgloseConsumo } from "@/convex/lib";
 
 type Multa = { tipo: string; descripcion: string; monto: number };
 
 type Tarifa = {
   tarifaBasica: number;
   consumoIncluido: number;
-  precioExcedente: number;
+  precioExcedente?: number;
+  tramos?: { hasta: number | null; precio: number }[];
 };
 
 type ArgsPDF = {
@@ -126,17 +128,14 @@ export function descargarPlanillaPDF({ socio, planilla, tarifa, config }: ArgsPD
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
 
-  const consumoReal = Math.max(0, planilla.consumo);
-  const m3Excedente = Math.max(0, consumoReal - tarifa.consumoIncluido);
-  const montoExcedente = Math.round((planilla.montoConsumo - tarifa.tarifaBasica) * 100) / 100;
-
+  const d = desgloseConsumo(planilla.consumo, tarifa);
   const desglose: [string, string][] = [
-    [`Tarifa básica (hasta ${tarifa.consumoIncluido} m³)`, dinero(tarifa.tarifaBasica)],
+    [`Tarifa básica (hasta ${tarifa.consumoIncluido} m³)`, dinero(d.basica)],
   ];
-  if (m3Excedente > 0) {
+  for (const ex of d.excedentes) {
     desglose.push([
-      `Excedente ${m3Excedente} m³ × ${dinero(tarifa.precioExcedente)}`,
-      dinero(montoExcedente),
+      `Excedente ${ex.m3} m³ × ${dinero(ex.precio)}/m³`,
+      dinero(ex.monto),
     ]);
   }
   for (const m of planilla.multas) {
