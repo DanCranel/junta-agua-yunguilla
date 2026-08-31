@@ -46,6 +46,14 @@ export const resumen = query({
       Id<"socios">,
       { monto: number; meses: number }
     >();
+    // Detalle de los pagos recibidos en el mes (para exportar a Excel).
+    const recaudadoDetalle: {
+      nombre: string;
+      anio: number;
+      mes: number;
+      monto: number;
+      fechaPago: string;
+    }[] = [];
 
     for (const p of planillas) {
       const esDelPeriodo = p.anio === anio && p.mes === mes;
@@ -65,6 +73,14 @@ export const resumen = query({
       if (pagada && p.fechaPago && p.fechaPago.startsWith(prefijoMes)) {
         recaudadoMonto += p.montoTotal;
         recaudadoCount += 1;
+        const s = nombrePorId.get(p.socioId);
+        recaudadoDetalle.push({
+          nombre: s ? `${s.apellidos} ${s.nombres}` : "Socio",
+          anio: p.anio,
+          mes: p.mes,
+          monto: Math.round(p.montoTotal * 100) / 100,
+          fechaPago: p.fechaPago,
+        });
       }
 
       // Deuda global (cualquier planilla sin pagar, de cualquier mes).
@@ -103,6 +119,9 @@ export const resumen = query({
       totalPendiente: centavos(totalPendiente),
       totalSocios: socios.length,
       morosos,
+      recaudadoDetalle: recaudadoDetalle.sort((a, b) =>
+        a.nombre.localeCompare(b.nombre),
+      ),
     };
   },
 });

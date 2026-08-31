@@ -6,6 +6,8 @@ import { api } from "@/convex/_generated/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { dinero, nombreJuntaMostrar, nombreMes } from "@/lib/formato";
 import { mensajeRecordatorioDeuda } from "@/lib/whatsapp";
+import { descargarReporteExcel } from "@/lib/excel-reportes";
+import { Button } from "@/components/ui/button";
 import { BotonWhatsApp } from "./boton-whatsapp";
 
 const MESES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -60,6 +62,14 @@ export function Reportes({ token }: { token: string }) {
             ))}
           </select>
         </div>
+        <Button
+          variant="outline"
+          className="h-12"
+          onClick={() => datos && descargarReporteExcel(datos, anio, mes)}
+          disabled={!datos}
+        >
+          📊 Descargar Excel
+        </Button>
       </div>
 
       {datos === undefined && <p className="text-muted-foreground">Cargando…</p>}
