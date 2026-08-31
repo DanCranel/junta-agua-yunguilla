@@ -213,6 +213,18 @@ export default function ConsultaPage() {
           Ingreso del tesorero
         </Link>
       </div>
+
+      <footer className="mt-6 text-center text-xs text-muted-foreground">
+        Hecho por{" "}
+        <a
+          href="https://cranelstudios.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-4 hover:text-foreground"
+        >
+          Cranel Studios
+        </a>
+      </footer>
     </main>
   );
 }

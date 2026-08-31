@@ -19,6 +19,7 @@ import { CierreMes } from "./_components/cierre-mes";
 import { Reportes } from "./_components/reportes";
 import { Configuracion } from "./_components/configuracion";
 import { FormSocio } from "./_components/form-socio";
+import { ImportarPadron } from "./_components/importar-padron";
 import { SocioCard } from "./_components/socio-card";
 import { normalizar } from "@/convex/lib";
 
@@ -273,6 +274,10 @@ function SeccionSocios({ token }: { token: string }) {
     <div>
       <div className="mb-4 flex justify-end">
         <FormSocio token={token} triggerLabel="+ Nuevo socio" />
+      </div>
+
+      <div className="mb-4">
+        <ImportarPadron token={token} />
       </div>
 
       {socios === undefined && <p className="text-muted-foreground">Cargando…</p>}

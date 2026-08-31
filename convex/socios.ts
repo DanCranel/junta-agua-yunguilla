@@ -128,6 +128,76 @@ export const crear = mutation({
   },
 });
 
+/**
+ * Importa un padrón de socios de una vez (desde un Excel). Crea cada socio,
+ * salta los que ya existen (misma cédula) o a los que les falta cédula/nombre/
+ * apellido, y devuelve cuántos creó y la lista de filas con problema. Requiere
+ * sesión. Pensado para el alta inicial de una junta.
+ */
+export const importar = mutation({
+  args: {
+    token: v.string(),
+    socios: v.array(
+      v.object({
+        cedula: v.string(),
+        nombres: v.string(),
+        apellidos: v.string(),
+        direccion: v.optional(v.string()),
+        telefono: v.optional(v.string()),
+        numeroMedidor: v.optional(v.string()),
+        lecturaInicial: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, { token, socios }) => {
+    await requerirSesion(ctx, token);
+
+    let creados = 0;
+    const errores: { fila: number; cedula: string; mensaje: string }[] = [];
+
+    for (let i = 0; i < socios.length; i++) {
+      const s = socios[i];
+      const cedula = soloDigitos(s.cedula);
+      const nombres = s.nombres.trim();
+      const apellidos = s.apellidos.trim();
+
+      if (!cedula || !nombres || !apellidos) {
+        errores.push({
+          fila: i + 1,
+          cedula: s.cedula,
+          mensaje: "Faltan cédula, nombres o apellidos.",
+        });
+        continue;
+      }
+
+      // Duplicados: ya en la base, o repetido dentro del mismo archivo (las
+      // inserciones previas de esta misma mutación ya son visibles aquí).
+      const existente = await ctx.db
+        .query("socios")
+        .withIndex("by_cedula", (q) => q.eq("cedula", cedula))
+        .first();
+      if (existente) {
+        errores.push({ fila: i + 1, cedula, mensaje: "Cédula repetida (ya existe)." });
+        continue;
+      }
+
+      await ctx.db.insert("socios", {
+        cedula,
+        nombres,
+        apellidos,
+        direccion: s.direccion?.trim() || undefined,
+        telefono: s.telefono?.trim() || undefined,
+        numeroMedidor: s.numeroMedidor?.trim() || undefined,
+        lecturaInicial: Number.isFinite(s.lecturaInicial) ? s.lecturaInicial : 0,
+        activo: true,
+      });
+      creados++;
+    }
+
+    return { creados, errores };
+  },
+});
+
 /** Actualiza los datos de identidad de un socio (requiere sesión). */
 export const actualizar = mutation({
   args: { token: v.string(), id: v.id("socios"), ...camposSocio },
