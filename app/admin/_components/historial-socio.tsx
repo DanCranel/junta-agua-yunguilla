@@ -147,9 +147,15 @@ function PlanillaItem({ token, planilla: p }: { token: string; planilla: Planill
       {/* Comprobante en revisión */}
       {p.estado === "en_revision" && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md bg-yellow-50 p-3">
-          <span className="text-sm text-yellow-800">
-            Comprobante enviado, pendiente de revisión.
-          </span>
+          {p.comprobantePorWhatsApp ? (
+            <span className="text-sm font-medium text-yellow-800">
+              📱 Enviado por WhatsApp — revíselo en su WhatsApp.
+            </span>
+          ) : (
+            <span className="text-sm text-yellow-800">
+              Comprobante enviado, pendiente de revisión.
+            </span>
+          )}
           {p.comprobanteUrl && (
             <a
               href={p.comprobanteUrl}

@@ -95,9 +95,15 @@ export function SocioCard({ token, socio }: { token: string; socio: SocioListado
         {/* Comprobante pendiente de revisión */}
         {pendiente?.estado === "en_revision" && (
           <div className="flex flex-wrap items-center gap-2 rounded-md bg-yellow-50 p-3">
-            <span className="text-sm text-yellow-800">
-              Comprobante enviado, pendiente de revisión.
-            </span>
+            {pendiente.comprobantePorWhatsApp ? (
+              <span className="text-sm font-medium text-yellow-800">
+                📱 Enviado por WhatsApp — revíselo en su WhatsApp.
+              </span>
+            ) : (
+              <span className="text-sm text-yellow-800">
+                Comprobante enviado, pendiente de revisión.
+              </span>
+            )}
             {pendiente.comprobanteUrl && (
               <a
                 href={pendiente.comprobanteUrl}

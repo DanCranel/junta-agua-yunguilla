@@ -539,7 +539,40 @@ export const adjuntarComprobante = mutation({
     await ctx.db.patch(planillaId, {
       comprobanteId: storageId,
       estado: "en_revision",
+      comprobantePorWhatsApp: false, // ahora hay archivo subido; se limpia la marca de WhatsApp
     });
     return { ok: true as const };
+  },
+});
+
+/**
+ * El socio indica que envió el comprobante por WhatsApp (no lo subió a la app).
+ * Marca las planillas seleccionadas como en_revision y deja constancia de que
+ * llegó por WhatsApp, para que el tesorero lo busque ahí. Verifica identidad
+ * (cédula + apellido) como el resto de acciones públicas del socio.
+ */
+export const marcarComprobanteWhatsApp = mutation({
+  args: {
+    cedula: v.string(),
+    apellido: v.string(),
+    planillaIds: v.array(v.id("planillas")),
+  },
+  handler: async (ctx, { cedula, apellido, planillaIds }) => {
+    const socio = await socioPorIdentidad(ctx, cedula, apellido);
+    if (!socio) {
+      return { ok: false as const, mensaje: "No se pudo verificar su identidad." };
+    }
+    let marcadas = 0;
+    for (const id of planillaIds) {
+      const p = await ctx.db.get(id);
+      if (p && p.socioId === socio._id && p.estado !== "pagado") {
+        await ctx.db.patch(id, {
+          estado: "en_revision",
+          comprobantePorWhatsApp: true,
+        });
+        marcadas++;
+      }
+    }
+    return { ok: true as const, marcadas };
   },
 });

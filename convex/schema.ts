@@ -65,6 +65,7 @@ export default defineSchema({
     fechaLimite: v.string(), // ISO YYYY-MM-DD
     fechaPago: v.optional(v.string()), // ISO, se llena al confirmar
     comprobanteId: v.optional(v.id("_storage")), // comprobante subido por el socio
+    comprobantePorWhatsApp: v.optional(v.boolean()), // el socio dijo que lo envió por WhatsApp
   })
     .index("by_socio", ["socioId"])
     .index("by_socio_periodo", ["socioId", "anio", "mes"]),

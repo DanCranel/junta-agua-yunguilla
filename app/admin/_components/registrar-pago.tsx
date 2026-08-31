@@ -180,6 +180,11 @@ function FilaPago({
         <div className="text-lg font-medium">{periodoLegible(p.anio, p.mes)}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-2">
           <EstadoBadge estado={p.estado} />
+          {p.comprobantePorWhatsApp && (
+            <span className="text-sm font-medium text-yellow-700">
+              📱 por WhatsApp
+            </span>
+          )}
           {conMulta && (
             <span className="text-sm font-medium text-amber-700">con multa</span>
           )}

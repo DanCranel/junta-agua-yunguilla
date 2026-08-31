@@ -95,6 +95,7 @@ export const listar = query({
               comprobanteUrl: p.comprobanteId
                 ? await ctx.storage.getUrl(p.comprobanteId)
                 : null,
+              comprobantePorWhatsApp: p.comprobantePorWhatsApp ?? false,
             }
           : null;
 

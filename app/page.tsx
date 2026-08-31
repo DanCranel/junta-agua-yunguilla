@@ -51,6 +51,7 @@ type Planilla = {
   fechaLimite: string;
   fechaPago?: string;
   comprobanteId?: string;
+  comprobantePorWhatsApp?: boolean;
 };
 
 type Socio = {
@@ -280,16 +281,25 @@ function PlanillasPorPagar({
   tarifa: Tarifa | undefined;
   config: Config;
 }) {
-  // Selección explícita por planilla; sin valor = marcada solo si está "por
-  // pagar" (las que ya están en revisión no se re-seleccionan por defecto).
-  const [sel, setSel] = useState<Record<string, boolean>>({});
-  const marcada = (p: Planilla) => sel[p._id] ?? p.estado === "por_pagar";
+  const marcarWhatsApp = useMutation(api.planillas.marcarComprobanteWhatsApp);
+  // El socio pidió corregir un comprobante ya enviado: reabre el envío.
+  const [corrigiendo, setCorrigiendo] = useState(false);
 
-  const seleccionadas = pendientes.filter(marcada);
+  const porPagar = pendientes.filter((p) => p.estado === "por_pagar");
+  const enRevision = pendientes.filter((p) => p.estado === "en_revision");
+
+  // Meses que se pueden enviar ahora: los que están por pagar; y, si el socio
+  // está corrigiendo, también los que ya envió (para reemplazarlos).
+  const enviables = corrigiendo ? pendientes : porPagar;
+  const bloqueados = corrigiendo ? [] : enRevision;
+
+  // Selección dentro de los enviables (todos marcados por defecto).
+  const [sel, setSel] = useState<Record<string, boolean>>({});
+  const marcada = (p: Planilla) => sel[p._id] ?? true;
+  const seleccionadas = enviables.filter(marcada);
   const total = seleccionadas.reduce((acc, p) => acc + p.montoTotal, 0);
 
-  // Mensaje para enviar el comprobante por WhatsApp al tesorero, con la
-  // identidad del socio ya escrita (cédula + nombre) y los meses elegidos.
+  // Mensaje de WhatsApp con la identidad del socio ya escrita y los meses.
   const periodosSel = seleccionadas
     .map((p) => periodoLegible(p.anio, p.mes))
     .join(", ");
@@ -299,6 +309,24 @@ function PlanillasPorPagar({
     (periodosSel ? ` (${periodosSel})` : "") +
     `. Adjunto la foto del comprobante.`;
 
+  // Al tocar WhatsApp: marca los meses como enviados por WhatsApp (en segundo
+  // plano) y cierra el envío; el enlace sigue abriendo WhatsApp.
+  function alTocarWhatsApp() {
+    if (seleccionadas.length === 0) return;
+    void marcarWhatsApp({
+      cedula: socio.cedula,
+      apellido: socio.apellidos,
+      planillaIds: seleccionadas.map((p) => p._id as Id<"planillas">),
+    });
+    setCorrigiendo(false);
+    setSel({});
+  }
+
+  function alEnviarComprobante() {
+    setCorrigiendo(false);
+    setSel({});
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -307,98 +335,126 @@ function PlanillasPorPagar({
         </CardTitle>
         <CardDescription className="text-base">
           {pendientes.length === 1
-            ? "Tiene 1 mes por pagar"
-            : `Tiene ${pendientes.length} meses por pagar`}
+            ? "Tiene 1 mes pendiente"
+            : `Tiene ${pendientes.length} meses pendientes`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 text-lg">
-        <p className="text-base text-muted-foreground">
-          Marque el mes o los meses que va a pagar.
-        </p>
-
-        {/* Un renglón seleccionable por mes pendiente */}
-        <div className="space-y-3">
-          {pendientes.map((p) => (
-            <MesPorPagar
-              key={p._id}
-              socio={socio}
-              planilla={p}
-              tarifa={tarifa}
-              config={config}
-              marcada={marcada(p)}
-              onToggle={(v) => setSel((prev) => ({ ...prev, [p._id]: v }))}
-            />
-          ))}
-        </div>
-
-        {/* Total de lo seleccionado */}
-        <div className="rounded-lg bg-muted p-4 text-center">
-          <div className="text-base text-muted-foreground">
-            Total a pagar ·{" "}
-            {seleccionadas.length === 1
-              ? "1 mes"
-              : `${seleccionadas.length} meses`}
-          </div>
-          <div className="text-4xl font-bold">{dinero(total)}</div>
-        </div>
-
-        {/* Datos de pago */}
-        {config && (
-          <div className="rounded-lg border bg-muted/40 p-4">
-            <div className="text-base font-semibold">Cómo pagar</div>
-            <p className="mt-1 text-base text-muted-foreground">
-              Realice la transferencia a esta cuenta y luego suba la foto del
-              comprobante.
+        {/* Meses ya enviados, en espera de revisión (bloqueados) */}
+        {bloqueados.length > 0 && (
+          <div className="space-y-2 rounded-lg border border-yellow-300 bg-yellow-50 p-4">
+            <p className="text-lg font-semibold text-yellow-900">
+              ✅ Comprobante enviado
             </p>
-            <dl className="mt-3 space-y-2">
-              <Fila etiqueta="Banco" valor={config.banco} />
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b py-2">
-                <dt className="text-muted-foreground">
-                  {`Cuenta ${config.tipoCuenta}`}
-                </dt>
-                <div className="flex items-center gap-3">
-                  <dd className="text-right font-medium">
-                    {config.numeroCuenta}
-                  </dd>
-                  <BotonCopiar texto={config.numeroCuenta} />
-                </div>
-              </div>
-              <Fila etiqueta="Titular" valor={config.titular} />
-              <Fila
-                etiqueta="Identificación"
-                valor={config.identificacionTitular}
-              />
-            </dl>
+            <p className="text-base text-yellow-900">
+              {bloqueados.length === 1 ? "El mes de " : "Los meses de "}
+              {bloqueados.map((p) => periodoLegible(p.anio, p.mes)).join(", ")}{" "}
+              {bloqueados.length === 1 ? "está" : "están"} en revisión. Espere a
+              que el tesorero confirme el pago.
+            </p>
+            <button
+              type="button"
+              onClick={() => setCorrigiendo(true)}
+              className="text-base font-medium text-yellow-900 underline underline-offset-4 hover:text-yellow-950"
+            >
+              ¿Envió algo incorrecto? Corregir
+            </button>
           </div>
         )}
 
-        {/* Subir un comprobante para los meses seleccionados */}
-        <SubirComprobante
-          planillaIds={seleccionadas.map((p) => p._id)}
-          cedula={socio.cedula}
-          apellido={socio.apellidos}
-        />
+        {/* Meses por pagar (o en corrección): selección + envío */}
+        {enviables.length > 0 && (
+          <>
+            <p className="text-base text-muted-foreground">
+              Marque el mes o los meses que va a pagar.
+            </p>
 
-        {/* Alternativa para quien no puede subir la foto: enviarla por WhatsApp */}
-        {config?.whatsappTesorero && (
-          <div className="rounded-lg border border-green-300 bg-green-50 p-4 text-center">
-            <p className="text-base text-green-900">
-              ¿Se le complica subir la foto? También puede enviar el comprobante
-              por WhatsApp al tesorero.
-            </p>
-            <a
-              href={enlaceWhatsApp(config.whatsappTesorero, mensajeWhatsApp)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 inline-flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-green-600 text-lg font-medium text-white transition-colors hover:bg-green-700"
-            >
-              💬 Enviar comprobante por WhatsApp
-            </a>
-            <p className="mt-2 text-sm text-green-800">
-              Se abre WhatsApp con sus datos ya escritos. Solo adjunte la foto del
-              comprobante y presione enviar.
-            </p>
-          </div>
+            <div className="space-y-3">
+              {enviables.map((p) => (
+                <MesPorPagar
+                  key={p._id}
+                  socio={socio}
+                  planilla={p}
+                  tarifa={tarifa}
+                  config={config}
+                  marcada={marcada(p)}
+                  onToggle={(v) => setSel((prev) => ({ ...prev, [p._id]: v }))}
+                />
+              ))}
+            </div>
+
+            <div className="rounded-lg bg-muted p-4 text-center">
+              <div className="text-base text-muted-foreground">
+                Total a pagar ·{" "}
+                {seleccionadas.length === 1
+                  ? "1 mes"
+                  : `${seleccionadas.length} meses`}
+              </div>
+              <div className="text-4xl font-bold">{dinero(total)}</div>
+            </div>
+
+            {config && (
+              <div className="rounded-lg border bg-muted/40 p-4">
+                <div className="text-base font-semibold">Cómo pagar</div>
+                <p className="mt-1 text-base text-muted-foreground">
+                  Realice la transferencia a esta cuenta y luego envíe la foto del
+                  comprobante.
+                </p>
+                <dl className="mt-3 space-y-2">
+                  <Fila etiqueta="Banco" valor={config.banco} />
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b py-2">
+                    <dt className="text-muted-foreground">
+                      {`Cuenta ${config.tipoCuenta}`}
+                    </dt>
+                    <div className="flex items-center gap-3">
+                      <dd className="text-right font-medium">
+                        {config.numeroCuenta}
+                      </dd>
+                      <BotonCopiar texto={config.numeroCuenta} />
+                    </div>
+                  </div>
+                  <Fila etiqueta="Titular" valor={config.titular} />
+                  <Fila
+                    etiqueta="Identificación"
+                    valor={config.identificacionTitular}
+                  />
+                </dl>
+              </div>
+            )}
+
+            <SubirComprobante
+              planillaIds={seleccionadas.map((p) => p._id)}
+              cedula={socio.cedula}
+              apellido={socio.apellidos}
+              onEnviado={alEnviarComprobante}
+            />
+
+            {config?.whatsappTesorero && (
+              <div className="rounded-lg border border-green-300 bg-green-50 p-4 text-center">
+                <p className="text-base text-green-900">
+                  ¿Se le complica subir la foto? También puede enviar el
+                  comprobante por WhatsApp al tesorero.
+                </p>
+                <a
+                  href={enlaceWhatsApp(config.whatsappTesorero, mensajeWhatsApp)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={alTocarWhatsApp}
+                  className={`mt-3 inline-flex h-14 w-full items-center justify-center gap-2 rounded-lg text-lg font-medium text-white transition-colors ${
+                    seleccionadas.length === 0
+                      ? "pointer-events-none bg-green-300"
+                      : "bg-green-600 hover:bg-green-700"
+                  }`}
+                >
+                  💬 Enviar comprobante por WhatsApp
+                </a>
+                <p className="mt-2 text-sm text-green-800">
+                  Se abre WhatsApp con sus datos ya escritos. Solo adjunte la foto
+                  del comprobante y presione enviar.
+                </p>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
@@ -509,10 +565,12 @@ function SubirComprobante({
   planillaIds,
   cedula,
   apellido,
+  onEnviado,
 }: {
   planillaIds: string[];
   cedula: string;
   apellido: string;
+  onEnviado?: () => void;
 }) {
   const generarUrlSubida = useMutation(api.planillas.generarUrlSubida);
   const adjuntarComprobante = useMutation(api.planillas.adjuntarComprobante);
@@ -562,6 +620,7 @@ function SubirComprobante({
       }
       setEstado("exito");
       setArchivo(null);
+      onEnviado?.();
     } catch (err) {
       // Error inesperado (red, o identidad rechazada al pedir la URL de subida).
       const data = (err as { data?: unknown }).data;
@@ -710,12 +769,16 @@ function HistorialAnios({
   tarifa: Tarifa | undefined;
   config: Config;
 }) {
-  if (planillas.length === 0) return null;
+  // El historial muestra solo los meses pagados; los pendientes (por pagar y en
+  // revisión) ya salen arriba en la tarjeta de pago.
+  const pagadas = planillas.filter((p) => p.estado === "pagado");
+  const [abierto, setAbierto] = useState(false);
+  if (pagadas.length === 0) return null;
 
   // Agrupa por año conservando el orden DESC de la lista de entrada.
   const anios: number[] = [];
   const porAnio = new Map<number, Planilla[]>();
-  for (const p of planillas) {
+  for (const p of pagadas) {
     if (!porAnio.has(p.anio)) {
       porAnio.set(p.anio, []);
       anios.push(p.anio);
@@ -725,32 +788,47 @@ function HistorialAnios({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-2xl font-bold">Historial de pagos</h2>
-      <p className="text-base text-muted-foreground">
-        Toque un mes para ver el detalle.
-      </p>
-      {anios.map((anio, i) => (
-        <details
-          key={anio}
-          open={i === 0}
-          className="rounded-lg border bg-card"
-        >
-          <summary className="cursor-pointer list-none px-4 py-4 text-xl font-semibold">
-            {anio}
-          </summary>
-          <div className="border-t">
-            {porAnio.get(anio)!.map((p) => (
-              <FilaHistorial
-                key={p._id}
-                socio={socio}
-                planilla={p}
-                tarifa={tarifa}
-                config={config}
-              />
-            ))}
-          </div>
-        </details>
-      ))}
+      <Button
+        type="button"
+        variant="outline"
+        className="h-14 w-full justify-between text-lg"
+        onClick={() => setAbierto((v) => !v)}
+      >
+        <span>Historial de pagos</span>
+        <span className="text-muted-foreground">
+          {abierto ? "Ocultar ▲" : "Mostrar ▼"}
+        </span>
+      </Button>
+
+      {abierto && (
+        <>
+          <p className="text-base text-muted-foreground">
+            Toque un mes para ver el detalle.
+          </p>
+          {anios.map((anio, i) => (
+            <details
+              key={anio}
+              open={i === 0}
+              className="rounded-lg border bg-card"
+            >
+              <summary className="cursor-pointer list-none px-4 py-4 text-xl font-semibold">
+                {anio}
+              </summary>
+              <div className="border-t">
+                {porAnio.get(anio)!.map((p) => (
+                  <FilaHistorial
+                    key={p._id}
+                    socio={socio}
+                    planilla={p}
+                    tarifa={tarifa}
+                    config={config}
+                  />
+                ))}
+              </div>
+            </details>
+          ))}
+        </>
+      )}
     </section>
   );
 }
