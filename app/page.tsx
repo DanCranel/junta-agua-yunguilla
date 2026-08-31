@@ -28,6 +28,7 @@ import {
 } from "@/lib/formato";
 import { descargarPlanillaPDF } from "@/lib/pdf";
 import { desgloseConsumo } from "@/convex/lib";
+import { enlaceWhatsApp } from "@/lib/whatsapp";
 
 // ---------------------------------------------------------------------------
 // Tipos (espejo de lo que devuelve la API de Convex).
@@ -75,6 +76,7 @@ type Config = {
   numeroCuenta: string;
   titular: string;
   identificacionTitular: string;
+  whatsappTesorero?: string;
 } | null;
 
 // ---------------------------------------------------------------------------
@@ -286,6 +288,17 @@ function PlanillasPorPagar({
   const seleccionadas = pendientes.filter(marcada);
   const total = seleccionadas.reduce((acc, p) => acc + p.montoTotal, 0);
 
+  // Mensaje para enviar el comprobante por WhatsApp al tesorero, con la
+  // identidad del socio ya escrita (cédula + nombre) y los meses elegidos.
+  const periodosSel = seleccionadas
+    .map((p) => periodoLegible(p.anio, p.mes))
+    .join(", ");
+  const mensajeWhatsApp =
+    `Hola, soy ${socio.nombres} ${socio.apellidos}. Mi cédula es ${socio.cedula}. ` +
+    `Le envío el comprobante de pago de mi planilla de agua` +
+    (periodosSel ? ` (${periodosSel})` : "") +
+    `. Adjunto la foto del comprobante.`;
+
   return (
     <Card>
       <CardHeader>
@@ -365,6 +378,28 @@ function PlanillasPorPagar({
           cedula={socio.cedula}
           apellido={socio.apellidos}
         />
+
+        {/* Alternativa para quien no puede subir la foto: enviarla por WhatsApp */}
+        {config?.whatsappTesorero && (
+          <div className="rounded-lg border border-green-300 bg-green-50 p-4 text-center">
+            <p className="text-base text-green-900">
+              ¿Se le complica subir la foto? También puede enviar el comprobante
+              por WhatsApp al tesorero.
+            </p>
+            <a
+              href={enlaceWhatsApp(config.whatsappTesorero, mensajeWhatsApp)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-green-600 text-lg font-medium text-white transition-colors hover:bg-green-700"
+            >
+              💬 Enviar comprobante por WhatsApp
+            </a>
+            <p className="mt-2 text-sm text-green-800">
+              Se abre WhatsApp con sus datos ya escritos. Solo adjunte la foto del
+              comprobante y presione enviar.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

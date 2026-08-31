@@ -276,6 +276,7 @@ function FormBanco({
     numeroCuenta: string;
     titular: string;
     identificacionTitular: string;
+    whatsappTesorero?: string;
   } | null;
 }) {
   const actualizar = useMutation(api.config.actualizar);
@@ -285,6 +286,9 @@ function FormBanco({
   const [titular, setTitular] = useState(inicial?.titular ?? "");
   const [identificacionTitular, setIdentificacionTitular] = useState(
     inicial?.identificacionTitular ?? "",
+  );
+  const [whatsappTesorero, setWhatsappTesorero] = useState(
+    inicial?.whatsappTesorero ?? "",
   );
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
@@ -303,6 +307,7 @@ function FormBanco({
         numeroCuenta: numeroCuenta.trim(),
         titular: titular.trim(),
         identificacionTitular: identificacionTitular.trim(),
+        whatsappTesorero: whatsappTesorero.trim() || undefined,
       });
       setOk(true);
     } catch (err) {
@@ -329,6 +334,13 @@ function FormBanco({
         label="Identificación del titular (cédula/RUC)"
         value={identificacionTitular}
         onChange={setIdentificacionTitular}
+      />
+      <Campo
+        label="WhatsApp del tesorero (para recibir comprobantes)"
+        type="tel"
+        value={whatsappTesorero}
+        onChange={setWhatsappTesorero}
+        placeholder="Ej. 0991234567"
       />
       <AvisoError mensaje={error} />
       {ok && <p className="text-base font-medium text-green-700">Cuenta guardada.</p>}

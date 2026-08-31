@@ -77,7 +77,7 @@ export default defineSchema({
     tramos: v.optional(v.array(tramoValidator)), // excedente por tramos (tiene prioridad)
   }),
 
-  // Configuración única: nombre de la junta + cuenta bancaria.
+  // Configuración única: nombre de la junta + cuenta bancaria + WhatsApp.
   config: defineTable({
     nombreJunta: v.optional(v.string()), // marca visible; cada junta pone el suyo
     banco: v.string(),
@@ -85,6 +85,7 @@ export default defineSchema({
     numeroCuenta: v.string(),
     titular: v.string(),
     identificacionTitular: v.string(),
+    whatsappTesorero: v.optional(v.string()), // para que el socio envíe el comprobante
   }),
 
   // Sesiones activas del panel del tesorero (token temporal tras validar la clave).
