@@ -124,6 +124,12 @@ function PlanillaItem({ token, planilla: p }: { token: string; planilla: Planill
           <dt className="text-muted-foreground">Consumo</dt>
           <dd className="font-medium">{dinero(p.montoConsumo)}</dd>
         </div>
+        {p.cargos?.map((c, i) => (
+          <div key={`cg${i}`} className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">{c.nombre}</dt>
+            <dd className="font-medium">{dinero(c.monto)}</dd>
+          </div>
+        ))}
         {p.multas.map((m, i) => (
           <div key={i} className="flex justify-between gap-4">
             <dt className="text-muted-foreground">

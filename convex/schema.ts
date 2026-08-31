@@ -50,6 +50,12 @@ export const moraValidator = v.object({
   diasGracia: v.number(),
 });
 
+/** Un cargo adicional recurrente (alcantarillado, cuota fija, aporte, etc.). */
+export const cargoValidator = v.object({
+  nombre: v.string(),
+  monto: v.number(),
+});
+
 export default defineSchema({
   // Identidad del socio (separada de sus planillas mensuales).
   socios: defineTable({
@@ -73,7 +79,8 @@ export default defineSchema({
     consumo: v.number(), // calculado = actual − anterior
     montoConsumo: v.number(), // calculado (básica + excedente)
     multas: v.array(multaValidator),
-    montoTotal: v.number(), // montoConsumo + suma(multas)
+    cargos: v.optional(v.array(cargoValidator)), // copia de los cargos vigentes al crearla
+    montoTotal: v.number(), // montoConsumo + cargos + multas
     estado: estadoValidator,
     fechaLimite: v.string(), // ISO YYYY-MM-DD
     fechaPago: v.optional(v.string()), // ISO, se llena al confirmar
@@ -90,6 +97,7 @@ export default defineSchema({
     precioExcedente: v.optional(v.number()), // legado: excedente de un solo precio
     tramos: v.optional(v.array(tramoValidator)), // excedente por tramos (tiene prioridad)
     mora: v.optional(moraValidator), // regla de mora por atraso (opcional)
+    cargos: v.optional(v.array(cargoValidator)), // cargos adicionales recurrentes
   }),
 
   // Configuración única: nombre de la junta + cuenta bancaria + WhatsApp.

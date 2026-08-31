@@ -49,6 +49,9 @@ export const COMPROBANTE_MAX_BYTES = 5 * 1024 * 1024;
 
 export type Multa = { tipo: string; descripcion: string; monto: number };
 
+/** Un cargo adicional recurrente (alcantarillado, cuota fija, aporte, etc.). */
+export type Cargo = { nombre: string; monto: number };
+
 /**
  * Un tramo de excedente: cobra `precio` por m³ desde el fin del tramo anterior
  * hasta `hasta` m³. El último tramo lleva `hasta: null` (de ahí en adelante).
@@ -70,6 +73,7 @@ export type Tarifa = {
   precioExcedente?: number; // legado: excedente de un solo precio (tramo único)
   tramos?: Tramo[]; // excedente por tramos (tiene prioridad sobre precioExcedente)
   mora?: Mora; // regla de mora por atraso (opcional)
+  cargos?: Cargo[]; // cargos adicionales recurrentes que se suman a cada planilla
 };
 
 /** Tarifa de la muestra: básica $3 hasta 15 m³, excedente $0.30/m³. */
@@ -177,9 +181,18 @@ export function sumaMultas(multas: Multa[]): number {
   return aCentavos(multas.reduce((acc, m) => acc + (m.monto || 0), 0));
 }
 
-/** Monto total = monto del consumo + suma de multas. */
-export function calcularMontoTotal(montoConsumo: number, multas: Multa[]): number {
-  return aCentavos(montoConsumo + sumaMultas(multas));
+/** Suma de los cargos adicionales de una planilla. */
+export function sumaCargos(cargos: Cargo[]): number {
+  return aCentavos(cargos.reduce((acc, c) => acc + (c.monto || 0), 0));
+}
+
+/** Monto total = consumo + cargos adicionales + multas. */
+export function calcularMontoTotal(
+  montoConsumo: number,
+  multas: Multa[],
+  cargos: Cargo[] = [],
+): number {
+  return aCentavos(montoConsumo + sumaCargos(cargos) + sumaMultas(multas));
 }
 
 /** Fecha (YYYY-MM-DD) a partir de una marca de tiempo en ms (usar Date.now()). */

@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { calcularConsumo, calcularMontoConsumo } from "@/convex/lib";
+import { calcularConsumo, calcularMontoConsumo, sumaCargos } from "@/convex/lib";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -357,6 +357,7 @@ function FilaSocio({
     consumoIncluido: number;
     precioExcedente?: number;
     tramos?: { hasta: number | null; precio: number }[];
+    cargos?: { nombre: string; monto: number }[];
   };
   valor: string;
   onChange: (v: string) => void;
@@ -366,7 +367,9 @@ function FilaSocio({
   const menor = lecturaValida && lecturaN < lecturaAnterior;
 
   const consumo = lecturaValida ? calcularConsumo(lecturaAnterior, lecturaN) : 0;
-  const monto = lecturaValida ? calcularMontoConsumo(consumo, tarifa) : 0;
+  const monto = lecturaValida
+    ? calcularMontoConsumo(consumo, tarifa) + sumaCargos(tarifa.cargos ?? [])
+    : 0;
 
   return (
     <Card className={yaRegistrada ? "opacity-60" : undefined}>

@@ -132,6 +132,7 @@ function FormTarifa({
       valor: number;
       diasGracia: number;
     };
+    cargos?: { nombre: string; monto: number }[];
   };
 }) {
   const actualizar = useMutation(api.tarifas.actualizar);
@@ -156,7 +157,26 @@ function FormTarifa({
   const [moraDiasGracia, setMoraDiasGracia] = useState(
     String(inicial.mora?.diasGracia ?? 0),
   );
+  const [cargos, setCargos] = useState<{ nombre: string; monto: string }[]>(
+    inicial.cargos?.map((c) => ({ nombre: c.nombre, monto: String(c.monto) })) ??
+      [],
+  );
   const [error, setError] = useState<string | null>(null);
+
+  function setCargo(i: number, campo: "nombre" | "monto", valor: string) {
+    setCargos((prev) =>
+      prev.map((c, j) => (j === i ? { ...c, [campo]: valor } : c)),
+    );
+    setOk(false);
+  }
+  function agregarCargo() {
+    setCargos((prev) => [...prev, { nombre: "", monto: "" }]);
+    setOk(false);
+  }
+  function quitarCargo(i: number) {
+    setCargos((prev) => prev.filter((_, j) => j !== i));
+    setOk(false);
+  }
   const [ok, setOk] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
@@ -200,6 +220,9 @@ function FormTarifa({
           valor: Number(moraValor) || 0,
           diasGracia: Number(moraDiasGracia) || 0,
         },
+        cargos: cargos
+          .map((c) => ({ nombre: c.nombre.trim(), monto: Number(c.monto) || 0 }))
+          .filter((c) => c.nombre !== ""),
       });
       setOk(true);
     } catch (err) {
@@ -273,6 +296,50 @@ function FormTarifa({
         ))}
         <Button type="button" variant="outline" size="sm" onClick={agregarTramo}>
           + Agregar tramo
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-base">
+          Cargos adicionales (se suman a cada planilla nueva)
+        </Label>
+        <p className="text-sm text-muted-foreground">
+          Cargos fijos recurrentes como alcantarillado, cuota fija o aportes.
+          Déjelo vacío si la junta no cobra ninguno.
+        </p>
+        {cargos.map((c, i) => (
+          <div key={i} className="flex items-end gap-2">
+            <div className="flex-[2] space-y-1.5">
+              <Label className="text-sm">Nombre</Label>
+              <Input
+                value={c.nombre}
+                onChange={(e) => setCargo(i, "nombre", e.target.value)}
+                placeholder="Ej. Alcantarillado"
+                className="h-11 text-base"
+              />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-sm">Monto ($)</Label>
+              <Input
+                type="number"
+                value={c.monto}
+                onChange={(e) => setCargo(i, "monto", e.target.value)}
+                className="h-11 text-base"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-11 text-red-700 hover:text-red-800"
+              onClick={() => quitarCargo(i)}
+            >
+              Quitar
+            </Button>
+          </div>
+        ))}
+        <Button type="button" variant="outline" size="sm" onClick={agregarCargo}>
+          + Agregar cargo
         </Button>
       </div>
 

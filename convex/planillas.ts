@@ -33,6 +33,7 @@ async function obtenerTarifa(ctx: QueryCtx): Promise<Tarifa> {
         precioExcedente: doc.precioExcedente,
         tramos: doc.tramos,
         mora: doc.mora,
+        cargos: doc.cargos,
       }
     : TARIFA_POR_DEFECTO;
 }
@@ -157,8 +158,7 @@ export const registrarLectura = mutation({
     const tarifa = await obtenerTarifa(ctx);
     const consumo = calcularConsumo(lecturaAnterior, lecturaActual);
     const montoConsumo = calcularMontoConsumo(consumo, tarifa);
-    const multas: never[] = [];
-    const montoTotal = montoConsumo;
+    const cargos = tarifa.cargos ?? [];
 
     return await ctx.db.insert("planillas", {
       socioId,
@@ -168,8 +168,9 @@ export const registrarLectura = mutation({
       lecturaActual,
       consumo,
       montoConsumo,
-      multas,
-      montoTotal,
+      multas: [],
+      cargos,
+      montoTotal: calcularMontoTotal(montoConsumo, [], cargos),
       estado: "por_pagar",
       fechaLimite: fechaLimite ?? ultimoDiaDelMes(anio, mes),
     });
@@ -278,6 +279,7 @@ export const registrarLecturasLote = mutation({
 
       const consumo = calcularConsumo(lecturaAnterior, lecturaActual);
       const montoConsumo = calcularMontoConsumo(consumo, tarifa);
+      const cargos = tarifa.cargos ?? [];
       await ctx.db.insert("planillas", {
         socioId,
         anio,
@@ -287,7 +289,8 @@ export const registrarLecturasLote = mutation({
         consumo,
         montoConsumo,
         multas: [],
-        montoTotal: montoConsumo,
+        cargos,
+        montoTotal: calcularMontoTotal(montoConsumo, [], cargos),
         estado: "por_pagar",
         fechaLimite: fechaLimite ?? ultimoDiaDelMes(anio, mes),
       });
@@ -329,7 +332,11 @@ export const editarLectura = mutation({
     const tarifa = await obtenerTarifa(ctx);
     const consumo = calcularConsumo(planilla.lecturaAnterior, lecturaActual);
     const montoConsumo = calcularMontoConsumo(consumo, tarifa);
-    const montoTotal = calcularMontoTotal(montoConsumo, planilla.multas);
+    const montoTotal = calcularMontoTotal(
+      montoConsumo,
+      planilla.multas,
+      planilla.cargos ?? [],
+    );
 
     await ctx.db.patch(planillaId, { lecturaActual, consumo, montoConsumo, montoTotal });
     return null;
@@ -357,7 +364,11 @@ export const agregarMulta = mutation({
     }
 
     const multas = [...planilla.multas, { tipo, descripcion, monto }];
-    const montoTotal = calcularMontoTotal(planilla.montoConsumo, multas);
+    const montoTotal = calcularMontoTotal(
+      planilla.montoConsumo,
+      multas,
+      planilla.cargos ?? [],
+    );
 
     await ctx.db.patch(planillaId, { multas, montoTotal });
     return null;
@@ -383,7 +394,11 @@ export const quitarMulta = mutation({
     }
 
     const multas = planilla.multas.filter((_, i) => i !== indice);
-    const montoTotal = calcularMontoTotal(planilla.montoConsumo, multas);
+    const montoTotal = calcularMontoTotal(
+      planilla.montoConsumo,
+      multas,
+      planilla.cargos ?? [],
+    );
 
     await ctx.db.patch(planillaId, { multas, montoTotal });
     return null;
@@ -456,7 +471,7 @@ export const aplicarMora = mutation({
       ];
       await ctx.db.patch(p._id, {
         multas,
-        montoTotal: calcularMontoTotal(p.montoConsumo, multas),
+        montoTotal: calcularMontoTotal(p.montoConsumo, multas, p.cargos ?? []),
       });
       aplicadas++;
     }

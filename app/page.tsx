@@ -47,6 +47,7 @@ type Planilla = {
   consumo: number;
   montoConsumo: number;
   multas: Multa[];
+  cargos?: { nombre: string; monto: number }[];
   montoTotal: number;
   estado: Estado;
   fechaLimite: string;
@@ -540,6 +541,9 @@ function MesPorPagar({
                 valor={dinero(ex.monto)}
               />
             ))}
+            {planilla.cargos?.map((c, i) => (
+              <Fila key={`cg${i}`} etiqueta={c.nombre} valor={dinero(c.monto)} />
+            ))}
             {planilla.multas.map((m, i) => (
               <Fila
                 key={i}
@@ -910,6 +914,9 @@ function FilaHistorial({
               etiqueta={`Excedente ${ex.m3} m³ × ${dinero(ex.precio)}/m³`}
               valor={dinero(ex.monto)}
             />
+          ))}
+          {planilla.cargos?.map((c, i) => (
+            <Fila key={`cg${i}`} etiqueta={c.nombre} valor={dinero(c.monto)} />
           ))}
           {planilla.multas.map((m, i) => (
             <Fila

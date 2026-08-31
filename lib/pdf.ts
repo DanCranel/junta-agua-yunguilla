@@ -36,6 +36,7 @@ type ArgsPDF = {
     consumo: number;
     montoConsumo: number;
     multas: Multa[];
+    cargos?: { nombre: string; monto: number }[];
     montoTotal: number;
     estado: Estado;
     fechaLimite: string;
@@ -137,6 +138,9 @@ export function descargarPlanillaPDF({ socio, planilla, tarifa, config }: ArgsPD
       `Excedente ${ex.m3} m³ × ${dinero(ex.precio)}/m³`,
       dinero(ex.monto),
     ]);
+  }
+  for (const c of planilla.cargos ?? []) {
+    desglose.push([c.nombre, dinero(c.monto)]);
   }
   for (const m of planilla.multas) {
     const etiqueta = TIPO_MULTA[m.tipo as TipoMulta] ?? m.tipo;

@@ -17,7 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { dinero, nombreMes } from "@/lib/formato";
-import { desgloseConsumo } from "@/convex/lib";
+import { desgloseConsumo, sumaCargos } from "@/convex/lib";
 import { AvisoError, mensajeError } from "./comunes";
 
 const ANIO_POR_DEFECTO = 2026;
@@ -182,9 +182,17 @@ export function RegistrarLectura({
                     valor={dinero(ex.monto)}
                   />
                 ))}
+                {preview.tarifa.cargos?.map((c, i) => (
+                  <Fila key={`cg${i}`} etiqueta={c.nombre} valor={dinero(c.monto)} />
+                ))}
                 <div className="mt-2 flex justify-between border-t pt-2 text-lg font-bold">
-                  <span>Total del consumo</span>
-                  <span>{dinero(preview.montoConsumo)}</span>
+                  <span>Total a cobrar</span>
+                  <span>
+                    {dinero(
+                      preview.montoConsumo +
+                        sumaCargos(preview.tarifa.cargos ?? []),
+                    )}
+                  </span>
                 </div>
               </dl>
             )}
