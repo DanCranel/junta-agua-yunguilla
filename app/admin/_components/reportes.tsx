@@ -116,9 +116,9 @@ export function Reportes({ token }: { token: string }) {
               detalle={`${datos.emitido.count} planilla(s) · ${datos.consumoMes} m³`}
             />
             <Tarjeta
-              titulo="Total pendiente (toda la junta)"
+              titulo="Total pendiente · todos los meses"
               valor={dinero(datos.totalPendiente)}
-              detalle={`${datos.morosos.length} socio(s) con deuda`}
+              detalle={`${datos.morosos.length} socio(s) con deuda · no depende del mes elegido`}
               tono="rojo"
             />
           </div>
