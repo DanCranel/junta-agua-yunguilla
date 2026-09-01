@@ -42,3 +42,6 @@ next-env.d.ts
 
 # claude code (local tooling, not for the repo)
 .claude/
+
+# Archivos de demo (data de ejemplo, no va en el repo)
+Demo/
