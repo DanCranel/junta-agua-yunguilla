@@ -109,6 +109,7 @@ export default defineSchema({
     titular: v.string(),
     identificacionTitular: v.string(),
     whatsappTesorero: v.optional(v.string()), // para que el socio envíe el comprobante
+    videoAyudaUrl: v.optional(v.string()), // enlace de YouTube con el instructivo para socios
   }),
 
   // Sesiones activas del panel del tesorero (token temporal tras validar la clave).

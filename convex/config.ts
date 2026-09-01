@@ -48,6 +48,7 @@ export const actualizar = mutation({
     titular: v.string(),
     identificacionTitular: v.string(),
     whatsappTesorero: v.optional(v.string()),
+    videoAyudaUrl: v.optional(v.string()),
   },
   handler: async (ctx, { token, ...datos }) => {
     await requerirSesion(ctx, token);

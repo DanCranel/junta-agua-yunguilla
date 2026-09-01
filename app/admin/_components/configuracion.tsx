@@ -432,6 +432,7 @@ function FormBanco({
     titular: string;
     identificacionTitular: string;
     whatsappTesorero?: string;
+    videoAyudaUrl?: string;
   } | null;
 }) {
   const actualizar = useMutation(api.config.actualizar);
@@ -444,6 +445,9 @@ function FormBanco({
   );
   const [whatsappTesorero, setWhatsappTesorero] = useState(
     inicial?.whatsappTesorero ?? "",
+  );
+  const [videoAyudaUrl, setVideoAyudaUrl] = useState(
+    inicial?.videoAyudaUrl ?? "",
   );
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
@@ -463,6 +467,7 @@ function FormBanco({
         titular: titular.trim(),
         identificacionTitular: identificacionTitular.trim(),
         whatsappTesorero: whatsappTesorero.trim() || undefined,
+        videoAyudaUrl: videoAyudaUrl.trim() || undefined,
       });
       setOk(true);
     } catch (err) {
@@ -496,6 +501,12 @@ function FormBanco({
         value={whatsappTesorero}
         onChange={setWhatsappTesorero}
         placeholder="Ej. 0991234567"
+      />
+      <Campo
+        label="Video de ayuda para socios (enlace de YouTube)"
+        value={videoAyudaUrl}
+        onChange={setVideoAyudaUrl}
+        placeholder="Ej. https://youtu.be/abc123"
       />
       <AvisoError mensaje={error} />
       {ok && <p className="text-base font-medium text-green-700">Cuenta guardada.</p>}

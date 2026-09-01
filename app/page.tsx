@@ -80,6 +80,7 @@ type Config = {
   titular: string;
   identificacionTitular: string;
   whatsappTesorero?: string;
+  videoAyudaUrl?: string;
 } | null;
 
 // ---------------------------------------------------------------------------
@@ -187,6 +188,20 @@ export default function ConsultaPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Video instructivo (si la junta lo configuró) */}
+      {config?.videoAyudaUrl && (
+        <div className="mt-4 text-center">
+          <a
+            href={config.videoAyudaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-primary bg-primary/5 px-5 py-3 text-lg font-medium text-primary transition-colors hover:bg-primary/10"
+          >
+            <span aria-hidden>▶</span> Aprenda a usar esta página
+          </a>
+        </div>
+      )}
 
       {/* Resultado de la consulta (ancla del desplazamiento automático) */}
       <div ref={resultadoRef} className="scroll-mt-4">
