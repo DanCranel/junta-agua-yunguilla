@@ -490,6 +490,31 @@ export const rechazarPago = mutation({
 });
 
 /**
+ * Rechaza el pago de varias planillas a la vez (todas vuelven a por_pagar).
+ * Se usa para rechazar un grupo de meses que el socio envió juntos. Limpia la
+ * marca de envío. Requiere sesión.
+ */
+export const rechazarPagos = mutation({
+  args: { token: v.string(), planillaIds: v.array(v.id("planillas")) },
+  handler: async (ctx, { token, planillaIds }) => {
+    await requerirSesion(ctx, token);
+    let rechazadas = 0;
+    for (const id of planillaIds) {
+      const p = await ctx.db.get(id);
+      if (p && p.estado !== "pagado") {
+        await ctx.db.patch(id, {
+          estado: "por_pagar",
+          grupoEnvio: undefined,
+          comprobantePorWhatsApp: false,
+        });
+        rechazadas++;
+      }
+    }
+    return { rechazadas };
+  },
+});
+
+/**
  * Busca al socio por cédula + apellido (misma regla que la consulta pública).
  * Devuelve el socio si la identidad coincide, o null. Sirve para autorizar las
  * acciones "públicas" del socio (subida de comprobante) sin sesión de tesorero.
@@ -542,8 +567,9 @@ export const adjuntarComprobante = mutation({
     storageId: v.id("_storage"),
     cedula: v.string(),
     apellido: v.string(),
+    grupoEnvio: v.optional(v.string()),
   },
-  handler: async (ctx, { planillaId, storageId, cedula, apellido }) => {
+  handler: async (ctx, { planillaId, storageId, cedula, apellido, grupoEnvio }) => {
     // Borra el archivo recién subido y devuelve el rechazo. Importante: NO se
     // lanza un error, porque una mutation de Convex es transaccional y un throw
     // revertiría también el `storage.delete`, dejando el archivo huérfano.
@@ -596,6 +622,7 @@ export const adjuntarComprobante = mutation({
       comprobanteId: storageId,
       estado: "en_revision",
       comprobantePorWhatsApp: false, // ahora hay archivo subido; se limpia la marca de WhatsApp
+      grupoEnvio, // agrupa los meses enviados juntos (mismo comprobante)
     });
     return { ok: true as const };
   },
@@ -612,8 +639,9 @@ export const marcarComprobanteWhatsApp = mutation({
     cedula: v.string(),
     apellido: v.string(),
     planillaIds: v.array(v.id("planillas")),
+    grupoEnvio: v.optional(v.string()),
   },
-  handler: async (ctx, { cedula, apellido, planillaIds }) => {
+  handler: async (ctx, { cedula, apellido, planillaIds, grupoEnvio }) => {
     const socio = await socioPorIdentidad(ctx, cedula, apellido);
     if (!socio) {
       return { ok: false as const, mensaje: "No se pudo verificar su identidad." };
@@ -625,6 +653,7 @@ export const marcarComprobanteWhatsApp = mutation({
         await ctx.db.patch(id, {
           estado: "en_revision",
           comprobantePorWhatsApp: true,
+          grupoEnvio, // agrupa los meses enviados juntos por WhatsApp
         });
         marcadas++;
       }

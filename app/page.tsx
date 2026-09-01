@@ -35,6 +35,11 @@ import { enlaceWhatsApp } from "@/lib/whatsapp";
 // Tipos (espejo de lo que devuelve la API de Convex).
 // ---------------------------------------------------------------------------
 
+/** Id único para agrupar los meses que el socio envía juntos (fuera del render). */
+function nuevoGrupoEnvio(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 type Multa = { tipo: string; descripcion: string; monto: number };
 
 type Planilla = {
@@ -342,10 +347,12 @@ function PlanillasPorPagar({
   // plano) y cierra el envío; el enlace sigue abriendo WhatsApp.
   function alTocarWhatsApp() {
     if (seleccionadas.length === 0) return;
+    const grupoEnvio = nuevoGrupoEnvio();
     void marcarWhatsApp({
       cedula: socio.cedula,
       apellido: socio.apellidos,
       planillaIds: seleccionadas.map((p) => p._id as Id<"planillas">),
+      grupoEnvio,
     });
     setCorrigiendo(false);
     setSel({});
@@ -630,6 +637,9 @@ function SubirComprobante({
     setEstado("subiendo");
     setMensajeError(null);
     try {
+      // Un id de envío común: agrupa los meses mandados juntos (para que el
+      // tesorero los confirme/rechace como un solo pago).
+      const grupoEnvio = nuevoGrupoEnvio();
       // Se sube una copia del comprobante para cada mes seleccionado: cada
       // planilla guarda su propio archivo (no se comparte entre meses).
       for (const id of planillaIds) {
@@ -646,6 +656,7 @@ function SubirComprobante({
           storageId,
           cedula,
           apellido,
+          grupoEnvio,
         });
         // El servidor puede rechazar el archivo (tipo/tamaño) o la identidad y
         // devuelve el motivo; en ese caso lo mostramos sin tratarlo como caída.

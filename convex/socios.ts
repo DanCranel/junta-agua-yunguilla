@@ -77,30 +77,33 @@ export const listar = query({
 
     return Promise.all(
       socios.map(async (socio) => {
-        // Planilla pendiente: la más reciente que no esté pagada.
+        // Todas las planillas sin pagar del socio, de la más antigua a la más
+        // nueva (para ver toda su deuda, no solo un mes).
         const planillas = await ctx.db
           .query("planillas")
           .withIndex("by_socio", (q) => q.eq("socioId", socio._id))
           .collect();
-        planillas.sort((a, b) => b.anio - a.anio || b.mes - a.mes);
-        const p = planillas.find((pl) => pl.estado !== "pagado") ?? null;
+        const noPagadas = planillas
+          .filter((pl) => pl.estado !== "pagado")
+          .sort((a, b) => a.anio - b.anio || a.mes - b.mes);
 
-        const pendiente = p
-          ? {
-              _id: p._id,
-              anio: p.anio,
-              mes: p.mes,
-              montoTotal: p.montoTotal,
-              estado: p.estado,
-              fechaLimite: p.fechaLimite,
-              comprobanteUrl: p.comprobanteId
-                ? await ctx.storage.getUrl(p.comprobanteId)
-                : null,
-              comprobantePorWhatsApp: p.comprobantePorWhatsApp ?? false,
-            }
-          : null;
+        const pendientes = await Promise.all(
+          noPagadas.map(async (p) => ({
+            _id: p._id,
+            anio: p.anio,
+            mes: p.mes,
+            montoTotal: p.montoTotal,
+            estado: p.estado,
+            fechaLimite: p.fechaLimite,
+            comprobanteUrl: p.comprobanteId
+              ? await ctx.storage.getUrl(p.comprobanteId)
+              : null,
+            comprobantePorWhatsApp: p.comprobantePorWhatsApp ?? false,
+            grupoEnvio: p.grupoEnvio ?? null,
+          })),
+        );
 
-        return { ...socio, pendiente };
+        return { ...socio, pendientes };
       }),
     );
   },
