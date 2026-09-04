@@ -150,7 +150,7 @@ function PlanillaItem({ token, planilla: p }: { token: string; planilla: Planill
         {p.fechaPago ? ` · Pagado: ${fechaLegible(p.fechaPago)}` : ""}
       </p>
 
-      {/* Comprobante en revisión */}
+      {/* Comprobante: en revisión (con acciones) o ya guardado de un pago confirmado */}
       {p.estado === "en_revision" && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md bg-yellow-50 p-3">
           {p.comprobantePorWhatsApp ? (
@@ -188,6 +188,19 @@ function PlanillaItem({ token, planilla: p }: { token: string; planilla: Planill
               Rechazar
             </Button>
           </div>
+        </div>
+      )}
+      {p.estado === "pagado" && p.comprobanteUrl && (
+        <div className="mt-3 flex items-center gap-2 rounded-md bg-muted/40 p-3">
+          <span className="text-sm text-muted-foreground">Comprobante de este pago:</span>
+          <a
+            href={p.comprobanteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium underline underline-offset-4"
+          >
+            Ver comprobante
+          </a>
         </div>
       )}
 

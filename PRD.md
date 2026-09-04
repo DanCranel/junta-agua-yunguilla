@@ -287,9 +287,10 @@ token · expiraEn
   ciclo de lectura.
 
 ## 15. Futuro (fuera del alcance actual)
-- Reportes para la directiva (recaudación por mes, morosos, resumen anual).
-- Cargos adicionales configurables (alcantarillado, cargo fijo, aportes).
 - Corte y reconexión del servicio.
-- Mora automática por atraso.
-- Notificaciones (correo / WhatsApp) al cambiar de estado.
 - Pago en línea real (pasarela).
+- **Mora atada a la tabla de interés nacional** (feedback de Chicty, 2026-09-02): hoy la mora es un valor fijo o % que configura el tesorero a mano. En Ecuador el Banco Central publica mensualmente las tasas de interés referenciales, de donde sale la tasa máxima legal de mora. Evaluar una opción de mora que se calcule según esa tabla oficial en vez de un número fijo, para que la junta siempre esté dentro de lo legal sin tener que actualizarla manualmente. Definir: fuente de datos (¿se ingresa a mano cada mes, o se importa?), y si aplica a todas las juntas o es opcional (Chictí no usa mora hoy).
+- **Abonos / pagos adelantados que se van descontando** (feedback de Chicty, 2026-09-02): que un socio pueda pagar un monto grande de una vez (ej. $100) y que quede como saldo a favor, descontándose automáticamente de las próximas planillas a medida que se generan — en vez de tener que pagar mes a mes. Relacionado con [[formato-real-junta-agua]] en memoria: la hoja real de otra junta ya maneja saldo acumulado y "abonos" parciales (a diferencia del modelo actual de la app, que solo permite pagar planillas completas). Definir el modelo de datos (¿tabla de créditos por socio? ¿se aplica automático al crear la planilla o el tesorero lo confirma?).
+
+### Ya construido (movido desde este backlog)
+Reportes para la directiva, cargos adicionales configurables, mora automática por atraso (valor fijo/%), notificaciones por WhatsApp (recordatorio + envío de comprobante) ya están implementados — ver README/CLAUDE.md para el estado actual.
