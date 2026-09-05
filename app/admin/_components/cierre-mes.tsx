@@ -15,20 +15,32 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { dinero, nombreMes, periodoLegible } from "@/lib/formato";
+import { dinero, fechaLegible, nombreJuntaMostrar, nombreMes, periodoLegible } from "@/lib/formato";
+import { mensajeRecordatorioPlanilla } from "@/lib/whatsapp";
 import {
   descargarPlantillaLecturas,
   leerLecturasDeExcel,
 } from "@/lib/excel-lecturas";
 import { AvisoError, mensajeError } from "./comunes";
+import { BotonWhatsApp } from "./boton-whatsapp";
 
 const ANIO_POR_DEFECTO = 2026;
 const MES_POR_DEFECTO = 7;
+
+type Aviso = {
+  socioId: string;
+  nombres: string;
+  apellidos: string;
+  telefono?: string;
+  montoTotal: number;
+  fechaLimite: string;
+};
 
 type Resultado = {
   creadas: number;
   omitidas: number;
   errores: { nombre: string; mensaje: string }[];
+  avisos: Aviso[];
 };
 
 /**
@@ -280,7 +292,10 @@ export function CierreMes({ token }: { token: string }) {
       )}
 
       {resultado && (
-        <ResumenGuardado resultado={resultado} periodo={periodoLegible(anioN, mesN)} />
+        <>
+          <ResumenGuardado resultado={resultado} periodo={periodoLegible(anioN, mesN)} />
+          <AvisoSocios avisos={resultado.avisos} periodo={periodoLegible(anioN, mesN)} />
+        </>
       )}
 
       <AvisoError mensaje={error} />
@@ -416,6 +431,71 @@ function FilaSocio({
               )}
             </div>
           </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Lista para avisar por WhatsApp a cada socio con planilla nueva. No se manda
+ * solo (WhatsApp no lo permite sin su API paga): el tesorero le da "Avisar"
+ * uno por uno y se abre el chat con el mensaje ya escrito.
+ */
+function AvisoSocios({ avisos, periodo }: { avisos: Aviso[]; periodo: string }) {
+  const config = useQuery(api.config.obtener, {});
+  const conTelefono = avisos.filter((a) => a.telefono);
+  const sinTelefono = avisos.length - conTelefono.length;
+
+  if (avisos.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Avisar a los socios</CardTitle>
+        <CardDescription className="text-base">
+          Mándeles un WhatsApp con el monto y la fecha límite de {periodo}. Debe
+          darle enviar en cada uno desde su WhatsApp — no se manda solo.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {conTelefono.length === 0 ? (
+          <p className="text-muted-foreground">
+            Ningún socio de este lote tiene teléfono registrado.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {conTelefono.map((a) => {
+              const mensaje = mensajeRecordatorioPlanilla({
+                nombre: a.nombres,
+                nombreJunta: nombreJuntaMostrar(config?.nombreJunta),
+                periodo,
+                monto: dinero(a.montoTotal),
+                vence: fechaLegible(a.fechaLimite),
+                enlaceConsulta:
+                  typeof window !== "undefined" ? window.location.origin : "",
+              });
+              return (
+                <li
+                  key={a.socioId}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-input p-3"
+                >
+                  <span className="text-base">
+                    {a.nombres} {a.apellidos} · {dinero(a.montoTotal)}
+                  </span>
+                  <BotonWhatsApp telefono={a.telefono} mensaje={mensaje} label="Avisar" />
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {sinTelefono > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {sinTelefono}{" "}
+            {sinTelefono === 1 ? "socio no tiene" : "socios no tienen"} teléfono
+            registrado — no se le{sinTelefono === 1 ? "" : "s"} puede avisar por
+            WhatsApp.
+          </p>
         )}
       </CardContent>
     </Card>

@@ -249,6 +249,14 @@ export const registrarLecturasLote = mutation({
     let creadas = 0;
     let omitidas = 0;
     const errores: { nombre: string; mensaje: string }[] = [];
+    const avisos: {
+      socioId: typeof lecturas[number]["socioId"];
+      nombres: string;
+      apellidos: string;
+      telefono?: string;
+      montoTotal: number;
+      fechaLimite: string;
+    }[] = [];
 
     for (const { socioId, lecturaActual } of lecturas) {
       const socio = await ctx.db.get(socioId);
@@ -280,6 +288,8 @@ export const registrarLecturasLote = mutation({
       const consumo = calcularConsumo(lecturaAnterior, lecturaActual);
       const montoConsumo = calcularMontoConsumo(consumo, tarifa);
       const cargos = tarifa.cargos ?? [];
+      const montoTotal = calcularMontoTotal(montoConsumo, [], cargos);
+      const fechaLimiteFinal = fechaLimite ?? ultimoDiaDelMes(anio, mes);
       await ctx.db.insert("planillas", {
         socioId,
         anio,
@@ -290,14 +300,24 @@ export const registrarLecturasLote = mutation({
         montoConsumo,
         multas: [],
         cargos,
-        montoTotal: calcularMontoTotal(montoConsumo, [], cargos),
+        montoTotal,
         estado: "por_pagar",
-        fechaLimite: fechaLimite ?? ultimoDiaDelMes(anio, mes),
+        fechaLimite: fechaLimiteFinal,
       });
       creadas++;
+      if (socio) {
+        avisos.push({
+          socioId,
+          nombres: socio.nombres,
+          apellidos: socio.apellidos,
+          telefono: socio.telefono,
+          montoTotal,
+          fechaLimite: fechaLimiteFinal,
+        });
+      }
     }
 
-    return { creadas, omitidas, errores };
+    return { creadas, omitidas, errores, avisos };
   },
 });
 

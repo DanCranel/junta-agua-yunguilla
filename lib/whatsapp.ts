@@ -39,17 +39,19 @@ export function enlaceWhatsApp(
   return num ? `https://wa.me/${num}?text=${texto}` : `https://wa.me/?text=${texto}`;
 }
 
-/** Mensaje de recordatorio para una planilla puntual (mes + monto). */
+/** Mensaje de recordatorio para una planilla puntual (mes + monto + vencimiento). */
 export function mensajeRecordatorioPlanilla(opts: {
   nombre: string;
   nombreJunta: string;
   periodo: string;
   monto: string;
+  vence: string;
   enlaceConsulta: string;
 }): string {
   return (
     `Hola ${opts.nombre}, le saluda ${opts.nombreJunta}. ` +
-    `Su planilla de agua de ${opts.periodo} es de ${opts.monto}. ` +
+    `Ya está disponible su planilla de agua de ${opts.periodo}, por ${opts.monto}, ` +
+    `con vencimiento el ${opts.vence}. ` +
     `Puede consultarla y ver cómo pagar aquí: ${opts.enlaceConsulta}\n\nGracias.`
   );
 }
