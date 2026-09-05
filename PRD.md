@@ -276,21 +276,17 @@ token · expiraEn
 
 ---
 
-## 14. Preguntas abiertas / a decidir
-- **Mora automática:** ¿calcular interés/multa automáticamente al pasar la fecha
-  límite, o siempre registrarla a mano? (por ahora: manual)
-- **Lectura menor a la anterior:** ¿bloquear, permitir con confirmación, o manejar
-  cambio de medidor? (por ahora: bloquear con aviso)
-- **Registro por lote:** ¿generar la planilla de todos los socios de un mes de una
-  sola vez, además de socio por socio? (futuro)
-- **Formato del período:** confirmar si el "mes" se maneja por mes calendario o por
-  ciclo de lectura.
+## 14. Decisiones ya tomadas (antes "preguntas abiertas")
+- **Mora automática:** sí — configurable por junta (activa/inactiva, fijo o %, días de gracia). Chictí la tiene desactivada.
+- **Lectura menor a la anterior:** se bloquea con aviso al registrar la lectura.
+- **Registro por lote:** resuelto vía importador de Excel en "Cierre de mes" (sube las lecturas de todos los socios de una vez), sin necesidad de una planilla por planilla.
+- **Formato del período:** mes calendario (campos `anio` + `mes` 1–12 en cada planilla).
 
 ## 15. Futuro (fuera del alcance actual)
 - Corte y reconexión del servicio.
 - Pago en línea real (pasarela).
 - **Mora atada a la tabla de interés nacional** (feedback de Chicty, 2026-09-02): hoy la mora es un valor fijo o % que configura el tesorero a mano. En Ecuador el Banco Central publica mensualmente las tasas de interés referenciales, de donde sale la tasa máxima legal de mora. Evaluar una opción de mora que se calcule según esa tabla oficial en vez de un número fijo, para que la junta siempre esté dentro de lo legal sin tener que actualizarla manualmente. Definir: fuente de datos (¿se ingresa a mano cada mes, o se importa?), y si aplica a todas las juntas o es opcional (Chictí no usa mora hoy).
-- **Abonos / pagos adelantados que se van descontando** (feedback de Chicty, 2026-09-02): que un socio pueda pagar un monto grande de una vez (ej. $100) y que quede como saldo a favor, descontándose automáticamente de las próximas planillas a medida que se generan — en vez de tener que pagar mes a mes. Relacionado con [[formato-real-junta-agua]] en memoria: la hoja real de otra junta ya maneja saldo acumulado y "abonos" parciales (a diferencia del modelo actual de la app, que solo permite pagar planillas completas). Definir el modelo de datos (¿tabla de créditos por socio? ¿se aplica automático al crear la planilla o el tesorero lo confirma?).
+- **Abonos / pagos adelantados que se van descontando** (feedback de Chicty, 2026-09-02): que un socio pueda pagar un monto grande de una vez (ej. $100) y que quede como saldo a favor, descontándose automáticamente de las próximas planillas a medida que se generan — en vez de tener que pagar mes a mes. Ya vimos el registro real de otra junta que maneja su contabilidad así (saldo acumulado + "abonos" parciales), a diferencia del modelo actual de la app, que solo permite pagar planillas completas. Definir el modelo de datos (¿tabla de créditos por socio? ¿se aplica automático al crear la planilla o el tesorero lo confirma?).
 
 ### Ya construido (movido desde este backlog)
 Reportes para la directiva, cargos adicionales configurables, mora automática por atraso (valor fijo/%), notificaciones por WhatsApp (recordatorio + envío de comprobante) ya están implementados — ver README/CLAUDE.md para el estado actual.
